@@ -1,0 +1,857 @@
+# SGLang Integration for Denial of Wallet
+
+## Purpose
+
+This document defines how SGLang can be integrated into **Denial of Wallet — Economic Security for Autonomous AI Agents**.
+
+The goal is not to make SGLang a dependency of the core security platform. Instead, SGLang is an **optional real inference/serving layer** that gives Denial of Wallet a realistic environment in which to observe, predict, and control AI-agent spending.
+
+> **Core idea:** Denial of Wallet protects the economic boundary between an autonomous agent and its model-serving infrastructure.
+
+---
+
+# 1. What is SGLang?
+
+SGLang is a high-performance serving framework for large language and multimodal models. It provides model serving, high-throughput inference, batching, parallelism, and an OpenAI-compatible API.
+
+The current SGLang quickstart documents an OpenAI-compatible `/v1/chat/completions` endpoint and examples using the OpenAI Python client.
+
+Official references:
+
+- SGLang repository: https://github.com/sgl-project/sglang
+- SGLang quickstart: https://github.com/sgl-project/sglang/blob/main/docs/docs/get-started/quickstart.mdx
+- SGLang Model Gateway: https://github.com/sgl-project/sglang/blob/main/docs/advanced_features/sgl_model_gateway.md
+
+---
+
+# 2. Why SGLang Fits Denial of Wallet
+
+Denial of Wallet needs to observe real AI inference behavior.
+
+Our system needs signals such as:
+
+- request frequency
+- input tokens
+- output tokens
+- model used
+- latency
+- tool activity
+- request concurrency
+- token throughput
+- estimated economic cost
+
+A real inference server gives us a much stronger demonstration than manually inserting fake database events.
+
+Instead of:
+
+```text
+Fake Event Generator
+        ↓
+usage_events
+```
+
+we can eventually have:
+
+```text
+AI Agent
+    ↓
+Denial of Wallet Gateway
+    ↓
+SGLang
+    ↓
+Real Model Inference
+    ↓
+Telemetry
+    ↓
+Cost / Risk / Policy
+```
+
+This allows the hackathon demo to show that the platform can protect a real model-serving workflow.
+
+---
+
+# 3. Where SGLang Fits
+
+Recommended architecture:
+
+```text
+                         AUTONOMOUS AI AGENT
+                                  |
+                                  v
+                     +-------------------------+
+                     | Denial of Wallet        |
+                     | Security Gateway        |
+                     +-----------+-------------+
+                                 |
+                 +---------------+----------------+
+                 |                                |
+                 v                                v
+          Telemetry Capture                Policy Decision
+                 |                                |
+                 v                                |
+           Cost Engine                           |
+                 |                                |
+                 v                                |
+          Attack Detector                         |
+                 |                                |
+                 v                                |
+           Risk Engine                            |
+                 |                                |
+                 v                                |
+          Digital Twin                            |
+                 |                                |
+                 +---------------+----------------+
+                                 |
+                         ALLOW / THROTTLE /
+                      DOWNGRADE / BLOCK
+                                 |
+                                 v
+                       +------------------+
+                       |     SGLang      |
+                       |  Model Server   |
+                       +--------+---------+
+                                |
+                                v
+                              MODEL
+```
+
+The important architectural principle is:
+
+> SGLang performs inference. Denial of Wallet decides whether the inference should be allowed and what economic controls should apply.
+
+---
+
+# 4. The Problem We Are Solving
+
+Traditional AI security focuses heavily on:
+
+- prompt injection
+- data leakage
+- unauthorized access
+- malicious outputs
+- model abuse
+
+Denial of Wallet focuses on a different failure mode:
+
+> **An autonomous AI agent can become economically dangerous even when the model itself is functioning correctly.**
+
+Examples:
+
+### Request Flood
+
+An agent enters a loop and sends hundreds of requests.
+
+```text
+Normal:
+10 requests/min
+
+Attack:
+300 requests/min
+```
+
+The model may still produce perfectly valid answers.
+
+The problem is the bill.
+
+### Token Explosion
+
+An agent repeatedly requests extremely long outputs.
+
+```text
+Normal:
+2K tokens/request
+
+Attack:
+50K tokens/request
+```
+
+Again, the model is behaving normally.
+
+The wallet is not.
+
+### Tool Loop
+
+An autonomous agent repeatedly calls tools and then asks the model to reason about the result.
+
+```text
+LLM
+ ↓
+Tool
+ ↓
+LLM
+ ↓
+Tool
+ ↓
+LLM
+ ↓
+Tool
+ ↓
+...
+```
+
+The loop can create rapidly increasing inference costs.
+
+### Model Escalation
+
+An agent moves from a cheap model to an expensive model without an appropriate reason.
+
+```text
+cheap model
+    ↓
+medium model
+    ↓
+expensive model
+    ↓
+frontier model
+```
+
+Denial of Wallet treats this as an economic security signal.
+
+---
+
+# 5. Why SGLang Makes the Demo Stronger
+
+Without SGLang:
+
+```text
+Attack
+ ↓
+Synthetic telemetry
+ ↓
+Cost calculation
+ ↓
+Risk
+```
+
+With SGLang:
+
+```text
+Attack
+ ↓
+Real inference requests
+ ↓
+Real serving layer
+ ↓
+Telemetry
+ ↓
+Cost
+ ↓
+Attack detection
+ ↓
+Risk
+ ↓
+Digital Twin
+ ↓
+Policy
+ ↓
+Mitigation
+```
+
+This gives us a much more credible story:
+
+> **We are not just simulating an expensive AI attack. We can place our economic security layer around actual model inference.**
+
+---
+
+# 6. Main SGLang Use Cases in Denial of Wallet
+
+## Use Case 1 — Real Telemetry Source
+
+SGLang becomes the source of actual inference traffic.
+
+Denial of Wallet records:
+
+```text
+request timestamp
+model
+input tokens
+output tokens
+latency
+request rate
+concurrency
+```
+
+These become `usage_events`.
+
+## Use Case 2 — Real Cost Measurement
+
+Instead of trusting:
+
+```json
+{
+  "estimated_cost": 0.08
+}
+```
+
+from an agent, Denial of Wallet can calculate cost from:
+
+```text
+model
++
+input tokens
++
+output tokens
++
+pricing configuration
+```
+
+This is much safer.
+
+Conceptually:
+
+```text
+SGLang request
+      |
+      v
+Token usage
+      |
+      v
+Pricing Engine
+      |
+      v
+Trusted economic cost
+```
+
+This is especially important because an attacker should not be able to simply report:
+
+```text
+estimated_cost = 0
+```
+
+to hide its actual consumption.
+
+## Use Case 3 — Attack Simulation
+
+Our attack simulator can eventually generate real requests against the SGLang server.
+
+Example:
+
+```text
+Normal mode
+
+5 requests/min
+       ↓
+SGLang
+       ↓
+Telemetry
+       ↓
+LOW RISK
+```
+
+Then:
+
+```text
+Attack mode
+
+200 requests/min
+       ↓
+SGLang
+       ↓
+Telemetry spike
+       ↓
+Cost acceleration
+       ↓
+HIGH/CRITICAL RISK
+```
+
+This creates a real end-to-end attack demonstration.
+
+## Use Case 4 — Policy Enforcement
+
+Denial of Wallet can make decisions before forwarding requests to SGLang.
+
+For example:
+
+```text
+Incoming request
+       |
+       v
+Risk = 25
+       |
+       v
+ALLOW
+       |
+       v
+SGLang
+```
+
+During an attack:
+
+```text
+Incoming request
+       |
+       v
+Risk = 72
+       |
+       v
+THROTTLE
+       |
+       v
+SGLang
+```
+
+At extreme risk:
+
+```text
+Incoming request
+       |
+       v
+Risk = 97
+       |
+       v
+BLOCK
+```
+
+The security decision is made by Denial of Wallet, not by the model.
+
+## Use Case 5 — Model Downgrade
+
+Suppose:
+
+```text
+Current model:
+expensive-model
+
+Risk:
+88
+
+Projected burn:
+$120/hour
+```
+
+The Policy Engine could recommend:
+
+```text
+MODEL_DOWNGRADE
+```
+
+The gateway can route subsequent requests to a cheaper model.
+
+Conceptually:
+
+```text
+                    POLICY ENGINE
+                          |
+                  MODEL_DOWNGRADE
+                          |
+             +------------+------------+
+             |                         |
+             v                         v
+      expensive model           cheaper model
+             |                         |
+             +------------+------------+
+                          |
+                          v
+                       SGLang
+```
+
+This allows Denial of Wallet to reduce economic exposure while keeping the agent operational.
+
+## Use Case 6 — Digital Twin Validation
+
+The Digital Twin can simulate:
+
+```text
+Current behavior
+Attack continues
+Throttle
+Block
+Model downgrade
+```
+
+For example:
+
+```text
+                DIGITAL TWIN
+                     |
+        +------------+------------+
+        |            |            |
+        v            v            v
+      Normal      Attack       Throttle
+        |            |            |
+        v            v            v
+      $10/h        $180/h        $18/h
+        |            |            |
+        v            v            v
+     LOW RISK     CRITICAL      MEDIUM
+```
+
+The Digital Twin can then say:
+
+> If we do nothing, the agent is projected to exhaust its $100 budget in 34 minutes. Throttling reduces projected cost by 84%.
+
+This turns the Digital Twin into a **decision-support system**, rather than a visualization.
+
+---
+
+# 7. SGLang Model Gateway
+
+SGLang also provides a Model Gateway with routing and middleware capabilities.
+
+Its current documentation describes OpenAI-compatible routing, multi-model inference gateway functionality, and WASM middleware for request/response processing. The middleware use cases include authentication, rate limiting, request modification, logging, and rejecting requests.
+
+This creates a possible future architecture:
+
+```text
+Agent
+  ↓
+SGLang Model Gateway
+  ↓
+Denial of Wallet controls
+  ↓
+SGLang workers
+  ↓
+Models
+```
+
+However:
+
+## We should NOT start here.
+
+For the hackathon MVP, keep the architecture simple:
+
+```text
+Agent
+  ↓
+Denial of Wallet
+  ↓
+SGLang
+  ↓
+Model
+```
+
+This makes our security boundary easier to explain and demonstrate.
+
+---
+
+# 8. Proposed Integration Layer
+
+Add this only when the core pipeline is stable:
+
+```text
+backend/
+└── app/
+    └── integrations/
+        └── sglang.py
+```
+
+The adapter should handle only:
+
+```text
+connect to SGLang
+send inference request
+receive response
+extract usage/latency information
+normalize telemetry
+```
+
+It should NOT contain:
+
+```text
+risk calculations
+attack detection
+policy decisions
+Digital Twin logic
+```
+
+Those belong to the existing services.
+
+Target flow:
+
+```text
+SGLang Adapter
+      |
+      v
+Normalized Telemetry
+      |
+      v
+Telemetry Service
+      |
+      v
+Cost Engine
+      |
+      v
+Attack Detector
+      |
+      v
+Risk Engine
+      |
+      v
+Digital Twin / Policy
+```
+
+This keeps SGLang replaceable.
+
+---
+
+# 9. Why SGLang Should Remain Optional
+
+Denial of Wallet should work with multiple inference providers.
+
+Potential future sources:
+
+```text
+SGLang
+OpenAI
+Anthropic
+vLLM
+Ollama
+other OpenAI-compatible servers
+```
+
+Therefore:
+
+```text
+                Denial of Wallet
+                       |
+             Inference Adapter
+                       |
+       +---------------+---------------+
+       |               |               |
+       v               v               v
+    SGLang           OpenAI          vLLM
+```
+
+The economic security layer stays the same.
+
+Only the adapter changes.
+
+> **Denial of Wallet is not an SGLang security product. It is an economic security layer for autonomous AI agents.**
+
+SGLang is our strongest real-inference demonstration.
+
+---
+
+# 10. Hardware / Deployment Considerations
+
+The standard SGLang quickstart currently recommends Linux and NVIDIA GPUs with CUDA for the common setup, while SGLang also documents support paths for other hardware platforms.
+
+Therefore, the core project should not depend on SGLang running locally on every developer laptop.
+
+Recommended strategy:
+
+```text
+                 Development
+                      |
+          +-----------+-----------+
+          |                       |
+          v                       v
+   Without SGLang             With SGLang
+          |                       |
+   Synthetic events        Real inference
+          |                       |
+          +-----------+-----------+
+                      |
+                      v
+             Same Cost Engine
+             Same Risk Engine
+             Same Policy Engine
+             Same Digital Twin
+```
+
+This keeps the project fully demoable even if the local machine does not have suitable hardware.
+
+---
+
+# 11. Hackathon Demo Strategy
+
+## Demo A — Guaranteed
+
+Use our attack simulator:
+
+```text
+Attack Simulator
+      ↓
+Usage Events
+      ↓
+Cost Engine
+      ↓
+Attack Detector
+      ↓
+Risk Engine
+      ↓
+Digital Twin
+      ↓
+Policy Engine
+      ↓
+Mitigation
+```
+
+## Demo B — Premium
+
+If SGLang is available:
+
+```text
+Real Agent
+      ↓
+Denial of Wallet Gateway
+      ↓
+SGLang
+      ↓
+Real Model
+```
+
+Trigger:
+
+```text
+tool loop / request flood
+```
+
+Then show:
+
+```text
+Requests ↑
+Tokens ↑
+Cost ↑
+Risk ↑
+```
+
+Then:
+
+```text
+Digital Twin:
+"No mitigation → $X projected loss"
+```
+
+Then:
+
+```text
+Policy:
+THROTTLE
+```
+
+Then show:
+
+```text
+Requests ↓
+Cost ↓
+Risk ↓
+Money preserved
+```
+
+---
+
+# 12. The Killer Demo Metric
+
+The most important number on the dashboard should not merely be:
+
+```text
+Risk: 87
+```
+
+It should be:
+
+```text
+PROJECTED LOSS WITHOUT PROTECTION
+
+$147.20
+```
+
+Then:
+
+```text
+PROJECTED LOSS WITH PROTECTION
+
+$23.40
+```
+
+Therefore:
+
+```text
+MONEY PRESERVED
+
+$123.80
+```
+
+SGLang helps make the underlying inference traffic real.
+
+---
+
+# 13. What SGLang Adds to the Product
+
+| Capability | Without SGLang | With SGLang |
+|---|---|---|
+| Telemetry | Synthetic/adapter-based | Real inference traffic |
+| Token usage | Simulated or provider-dependent | Real model-serving workload |
+| Attack demo | Simulated | Can target real serving |
+| Cost forecasting | Yes | Yes, with realistic workload |
+| Risk scoring | Yes | Yes |
+| Digital Twin | Yes | More credible calibration |
+| Policy engine | Yes | Can enforce before inference |
+| Model downgrade | Conceptual | Can route to another served model |
+| Real LLM demo | Optional | Strongly supported |
+| Provider independence | Strong | Still strong if SGLang is an adapter |
+
+---
+
+# 14. Implementation Order
+
+Do NOT pause the main project to build SGLang first.
+
+Our priority remains:
+
+```text
+1. Pricing Engine
+2. Events Repository
+3. Cost Engine
+4. Usage/Cost API
+5. Attack Detector
+6. Risk Engine
+7. Policy Engine
+8. Digital Twin integration
+9. Attack Simulator
+10. SGLang adapter
+11. End-to-end real inference demo
+```
+
+The SGLang adapter should be added after the core security pipeline works.
+
+---
+
+# 15. Final Positioning
+
+The strongest way to describe the integration is:
+
+> **SGLang provides the inference infrastructure; Denial of Wallet provides the economic security layer.**
+
+SGLang makes model inference fast and scalable.
+
+Denial of Wallet asks a different question:
+
+> **"Should this agent be allowed to keep spending at this rate?"**
+
+That distinction is the heart of the project.
+
+Final system:
+
+```text
+             AUTONOMOUS AI AGENT
+                      |
+                      v
+             DENIAL OF WALLET
+                      |
+       +--------------+--------------+
+       |              |              |
+       v              v              v
+     COST           RISK          DIGITAL
+    ENGINE         ENGINE           TWIN
+       |              |              |
+       +--------------+--------------+
+                      |
+                POLICY ENGINE
+                      |
+        +-------------+-------------+
+        |             |             |
+      ALLOW        THROTTLE       BLOCK
+        |             |             |
+        +-------------+-------------+
+                      |
+                      v
+                   SGLang
+                      |
+                      v
+                    MODEL
+```
+
+**SGLang is therefore an optional execution layer, while Denial of Wallet remains the product.**
+
