@@ -11,14 +11,29 @@ app = FastAPI(
     version="1.0.0"
 )
 
+import os
+from fastapi.responses import FileResponse
+
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
 @app.get("/")
 def read_root():
+    index_path = os.path.join(BASE_DIR, "index.html")
+    if os.path.exists(index_path):
+        return FileResponse(index_path)
     return {
         "status": "online",
         "subsystem": "Digital Twin Engine (1st_trial)",
         "scope": "Simulation Only - Zero Real Provider Calls",
         "version": "1.0.0"
     }
+
+@app.get("/wallet.png")
+def get_wallet_image():
+    wallet_path = os.path.join(BASE_DIR, "wallet.png")
+    if os.path.exists(wallet_path):
+        return FileResponse(wallet_path, media_type="image/png")
+    raise HTTPException(status_code=404, detail="wallet.png asset not found")
 
 class SimulateRequest(BaseModel):
     task: Task
@@ -81,7 +96,8 @@ def api_start_execution_session(req: StartSessionRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Session initialization error: {str(e)}")
 
-from domain.models import ProposedAction, UsageEvent
+from domain.models import ProposedAction
+from providers.usage_event import UsageEvent
 
 @app.post("/digital-twin/runtime/authorize-action")
 def api_authorize_action(action: ProposedAction):

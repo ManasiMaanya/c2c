@@ -1,0 +1,562 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Denial of Wallet</title>
+<style>
+  :root {
+    --bg-base: #05070d;
+    --bg-deep: #0a0f1c;
+    --text-primary: #f2f6fc;
+    --text-muted: #8fa1bd;
+    --text-faint: #5a6c8a;
+    --accent-blue: #4f8cff;
+    --accent-blue-bright: #3b82f6;
+    --accent-blue-deep: #2563eb;
+    --border-subtle: rgba(255, 255, 255, 0.07);
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--bg-base);
+    color: var(--text-primary);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    overflow-x: hidden;
+  }
+
+  /* ==========================================================
+     HERO SECTION -- background + layout shell
+     ========================================================= */
+  .hero {
+    position: relative;
+    min-height: 100vh;
+    width: 100%;
+    background: radial-gradient(ellipse 120% 80% at 15% 0%, #0c1730 0%, var(--bg-base) 55%),
+                var(--bg-base);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* Ambient glow -- soft blue haze present in the reference design. */
+  .hero-glow {
+    position: absolute;
+    top: 6%;
+    right: 2%;
+    width: 46%;
+    height: 70%;
+    background: radial-gradient(circle at 60% 35%, rgba(70, 130, 255, 0.30) 0%, rgba(70, 130, 255, 0.12) 35%, rgba(70, 130, 255, 0) 70%);
+    filter: blur(10px);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* =========================================================
+     HEADER / NAVBAB
+     ========================================================= */
+  .navbar {
+    position: relative;
+    z-index: 3;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 22px 44px;
+    border-bottom: 1px solid var(--border-subtle);
+  }
+
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 17px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+  }
+  .logo span.brand-blue { color: var(--accent-blue); }
+  .logo svg { flex-shrink: 0; }
+
+  .theme-toggle {
+    width: 52px;
+    height: 28px;
+    border-radius: 999px;
+    background: #131a2b;
+    border: 1px solid var(--border-subtle);
+    display: flex;
+    align-items: center;
+    padding: 3px;
+    cursor: pointer;
+  }
+  .theme-toggle .moon {
+    width: 14px;
+    height: 14px;
+    color: #7d8cab;
+    margin-right: auto;
+    margin-left: 2px;
+  }
+  .theme-toggle .knob {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: #d7deec;
+    margin-left: auto;
+  }
+
+  /* =========================================================
+     HERO CONTENT (left column: heading + CTAs)
+     ========================================================= */
+  .hero-content {
+    position: relative;
+    z-index: 3;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 0 48px;
+    max-width: 700px;
+  }
+
+  .hero-content h1 {
+    font-size: clamp(34px, 5vw, 58px);
+    line-height: 1.15;
+    font-weight: 800;
+    letter-spacing: -0.015em;
+    margin: 0 0 32px 0;
+  }
+  .grad-text {
+    background: linear-gradient(90deg, #9cc4ff 0%, #dce9ff 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  .cta-row {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    flex-wrap: wrap;
+  }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 16px 28px;
+    border-radius: 999px;
+    font-size: 16px;
+    font-weight: 600;
+    text-decoration: none;
+    cursor: pointer;
+    border: none;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    font-family: inherit;
+  }
+  .btn:hover { transform: translateY(-1px); }
+
+  .btn-primary {
+    background: linear-gradient(90deg, var(--accent-blue-bright), var(--accent-blue-deep));
+    color: #fff;
+    box-shadow: 0 0 0 1px rgba(79,140,255,0.4), 0 10px 30px -6px rgba(59,130,246,0.65);
+  }
+  .btn-primary:hover {
+    box-shadow: 0 0 0 1px rgba(79,140,255,0.55), 0 14px 36px -6px rgba(59,130,246,0.8);
+  }
+
+  .btn-secondary {
+    background: transparent;
+    color: var(--text-primary);
+    border: 1px solid rgba(140, 165, 210, 0.35);
+  }
+  .btn-secondary:hover { border-color: rgba(140, 165, 210, 0.6); }
+  .btn-secondary .play-icon {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: var(--accent-blue-bright);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* =========================================================
+     WALLET + FALLING COINS VISUAL (right side)
+     ========================================================= */
+  .wallet-visual {
+    position: absolute;
+    top: 50%;
+    right: 5%;
+    transform: translateY(-48%);
+    width: clamp(260px, 30vw, 430px);
+    aspect-ratio: 1227 / 1281;
+    z-index: 2;
+    pointer-events: none;
+  }
+  .wallet-visual img#walletImage {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    z-index: 2;
+    user-select: none;
+    -webkit-user-drag: none;
+  }
+  .wallet-visual canvas#coinCanvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 1; /* coins render behind the wallet artwork's coin slot */
+  }
+
+  @media (max-width: 900px) {
+    .wallet-visual { display: none; }
+  }
+
+  /* =========================================================
+     FOOTER STRIP
+     ========================================================= */
+  .footer-strip {
+    position: relative;
+    z-index: 3;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 26px 44px;
+    font-size: 13px;
+    color: var(--text-muted);
+  }
+  .footer-strip strong { color: var(--text-primary); font-weight: 700; }
+  .footer-divider { color: var(--text-faint); }
+
+  /* =========================================================
+     SCROLL INDICATOR (bottom-right)
+     ========================================================= */
+  .scroll-indicator {
+    position: absolute;
+    bottom: 28px;
+    right: 44px;
+    z-index: 3;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    color: var(--text-faint);
+  }
+  .scroll-indicator svg.sparkle { width: 26px; height: 26px; opacity: 0.7; }
+  .scroll-indicator span {
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    font-weight: 600;
+  }
+</style>
+</head>
+<body>
+
+<section class="hero" id="heroSection">
+  <div class="hero-glow"></div>
+
+  <!-- ========= HEADER ========= -->
+  <header class="navbar">
+    <div class="logo">
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
+        <path d="M12 2 4 5v6c0 5 3.4 8.7 8 10 4.6-1.3 8-5 8-10V5l-8-3Z" stroke="#4f8cff" stroke-width="1.6" stroke-linejoin="round"/>
+        <path d="M12 9v6M9 12h6" stroke="#4f8cff" stroke-width="1.6" stroke-linecap="round"/>
+      </svg>
+      <span>Denial of <span class="rrand-blue">Wallet</span></span>
+    </div>
+    <div class="theme-toggle" aria-hidden="true">
+      <svg class="moon" viewBox="0 0 24 24" fill="currentColor"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79Z"/></svg>
+      <div class="knob"></div>
+    </div>
+  </header>
+
+  <!-- ======== HERO CONTENT ========= -->
+  <div class="hero-content">
+    <h1>
+      <span class="grad-text">Your AI</span> has a Wallet,<br>
+      <span class="grad-text">We</span> Protect It.
+    </h1>
+    <div class="cta-row">
+      <button class="btn btn-primary">Open Dashboard &#8594;</button>
+      <button class="btn btn-secondary">
+        Watch Demo
+        <span class="play-icon">
+          <svg width="10" height="10" viewBox="0 0 10 10" fill="white"><polygon points="1,0 10,5 1,10"/></svg>
+        </span>
+      </button>
+    </div>
+  </div>
+
+  <!-- ========= WALLET + COIN ANIMATION ======== -->
+  <div class="wallet-visual" id="walletVisual">
+    <canvas id="coinCanvas"></canvas>
+    <img id="walletImage" src="wallet.png" alt="Denial of Wallet Visual">
+  </div>
+
+  <!-- ======== FOOTER ========= -->
+  <div class="footer-strip">
+    <strong>Denial of Wallet</strong>
+    <span class="footer-divider">|</span>
+    <span>Smarter AI. Safer tomorrow.</span>
+  </div>
+
+  <!-- ======== SCROLL INDICATOR ======== -->
+  <div class="scroll-indicator">
+    <svg class="sparkle" viewBox="0 0 24 24" fill="#7d8cab">
+      <path d="M12 2c.6 4.2 2.4 6 6.6 6.6-4.2 .6-6 2.4-6.6 6.6-.6-4.2-2.4-6-6.6-6.6C9.6 8 11.4 6.2 12 2Z"/>
+    </svg>
+    <span>SCROLL &#8595;</span>
+  </div>
+</section>
+
+<script src="https://chnijs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(() => {
+  const container = document.getElementById('walletVisual');
+  const canvas = document.getElementById('coinCanvas');
+
+  if (!container || !canvas) return;
+
+  const CONFIG = {
+    spawnXPercent: 0.50,
+    spawnXJitterPercent: 0.06,
+    spawnYPercent: 0.58,
+    despawnYPercent: 1.12,
+    fadeInFraction: 0.08,
+    fadeOutFraction: 0.20,
+    coinCount: 6,
+    coinRadiusRange: [20, 30],
+    coinSpeedRange: [1.4, 2.6],
+    fallAcceleration: 0.0035,
+    maxFallSpeed: 5.5,
+    rotationSpeedRange: [0.01, 0.04],
+  };
+
+  let width = container.clientWidth;
+  let height = container.clientHeight;
+
+  const scene = new THREE.Scene();
+  const camera = new THREE.OrthographicCamera(-width / 2, width / 2, height / 2, -height / 2, 1, 2000);
+  camera.position.z = 800;
+
+  const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setSize(width, height);
+
+  function pxToWorld(px, py) {
+    return { x: px - width / 2, y: height / 2 - py };
+  }
+
+  scene.add(new THREE.AmbientLight(0x1a2c4d, 0.7));
+  const keyLight = new THREE.DirectionalLight(0x8fd7ff, 1.1);
+  keyLight.position.set(-1, 1.2, 1.5);
+  scene.add(keyLight);
+  const rimLight = new THREE.PointLight(0x2fb8ff, 2.2, 900);
+  rimLight.position.set(60, 40, 300);
+  scene.add(rimLight);
+  const fillLight = new THREE.PointLight(0x0a1a33, 1.0, 900);
+  fillLight.position.set(-100, -80, 200);
+  scene.add(fillLight);
+
+  function createCoinFaceTexture() {
+    const size = 256;
+    const c = document.createElement('canvas');
+    c.width = c.height = size;
+    const ctx = c.getContext('2d');
+    const cx = size / 2, cy = size / 2, r = size * 0.42;
+
+    function octagonPath(radius) {
+      ctx.beginPath();
+      for (let i = 0; i < 8; i++) {
+        const angle = Math.PI / 8 + i * (Math.PI / 4);
+        const x = cx + radius * Math.cos(angle);
+        const y = cy + radius * Math.sin(angle);
+        i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+      }
+      ctx.closePath();
+    }
+
+    octagonPath(r);
+    const grad = ctx.createLinearGradient(0, 0, size, size);
+    grad.addColorStop(0, '#123f6e');
+    grad.addColorStop(0.5, '#0b2a4d');
+    grad.addColorStop(1, '#05101f');
+    ctx.fillStyle = grad;
+    ctx.fill();
+
+    ctx.save();
+    octagonPath(r);
+    ctx.lineWidth = 8;
+    ctx.strokeStyle = '#4fd8ff';
+    ctx.shadowColor = '#4fd8ff';
+    ctx.shadowBlur = 22;
+    ctx.stroke();
+    ctx.restore();
+
+    octagonPath(r * 0.84);
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = 'rgba(170,225,255,0.55)';
+    ctx.stroke();
+
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.fillStyle = '#eaf7ff';
+    ctx.shadowColor = '#9fe8ff';
+    ctx.shadowBlur = 20;
+    const s = size * 0.15;
+    ctx.beginPath();
+    ctx.moveTo(0, -s);
+    ctx.bezierCurveTo(s * 0.18, -s * 0.18, s * 0.18, -s * 0.18, s, 0);
+    ctx.bezierCurveTo(s * 0.18, s * 0.18,(s * 0.18, s * 0.18, 0, s);
+    ctx.bezierCurveTo(-s * 0.18,(s * 0.18, -s * 0.18,(s * 0.18, -s, 0);
+    ctx.bezierCurveTo(-s * 0.18, -s * 0.18, -s * 0.18, -s * 0.18, 0, -s);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+
+    const tex = new THREE.CanvasTexture(c);
+    tex.anisotropy = 4;
+    return tex;
+  }
+  const coinFaceTexture = createCoinFaceTexture();
+
+  function createCoinMesh(radius) {
+    const thickness = radius * 0.26;
+    const geo = new THREE.CylinderGeometry(radius, radius, thickness, 8);
+
+    const faceMaterial = new THREE.MeshPhysicalMaterial({
+      map: coinFaceTexture,
+      metalness: 0.55,
+      roughness: 0.22,
+      clearcoat: 0.7,
+      clearcoatRoughness: 0.15,
+      emissive: new THREE.Color(0x0d3a66),
+      emissiveIntensity: 0.35,
+      transparent: true,
+    });
+    const edgeMaterial = new THREE.MeshPhysicalMaterial({
+      color: 0x0a1830,
+      metalness: 0.8,
+      roughness: 0.3,
+      emissive: new THREE.Color(0x1c6fa8),
+      emissiveIntensity: 0.5,
+      transparent: true,
+    });
+
+    return new THREE.Mesh(geo, [edgeMaterial, faceMaterial, faceMaterial]);
+  }
+
+  const coins = [];
+  const randRange = ([min, max]) => min + Math.random() * (max - min);
+
+  function spawnPoint() {
+    const jitter = (Math.random() - 0.5) * 2 * CONFIG.spawnXJitterPercent * width;
+    return { px: width * CONFIG.spawnXPercent + jitter, py: height * CONFIG.spawnYPercent };
+  }
+
+  function setOpacity(coin, value) {
+    coin.mesh.material.forEach((m) => { m.opacity = value; });
+  }
+
+  function initCoin(offsetIndex, coinCount) {
+    const radius = randRange(CONFIG.coinRadiusRange) * (width / 380);
+    const mesh = createCoinMesh(radius);
+    scene.add(mesh);
+
+    const { px, py } = spawnPoint();
+    const travel = height * (CONFIG.despawnYPercent - CONFIG.spawnYPercent);
+    const staggeredPy = py + (offsetIndex / coinCount) * travel;
+
+    const world = pxToWorld(px, staggeredPy);
+    mesh.position.set(world.x, world.y, (Math.random() - 0.5) * 40);
+    mesh.rotation.x = Math.random() * Math.PI * 2;
+    mesh.rotation.y = Math.random() * Math.PI * 2;
+    mesh.rotation.z = (Math.random() - 0.5) * 0.6;
+
+    const coin = {
+      mesh,
+      speed: randRange(CONFIG.coinSpeedRange) * (width / 380),
+      rotSpeedX: randRange(CONFIG.rotationSpeedRange) * (Math.random() < 0.5 ? -1 : 1),
+      rotSpeedZ: randRange(CONFIG.rotationSpeedRange) * 0.4 * (Math.random() < 0.5 ? -1 : 1),
+      swaySeed: Math.random() * Math.PI * 2,
+    };
+    setOpacity(coin, 1);
+    return coin;
+  }
+
+  function resetCoin(coin) {
+    const { px, py } = spawnPoint();
+    const world = pxToWorld(px, py);
+    coin.mesh.position.set(world.x, world.y, (Math.random() - 0.5) * 40);
+    coin.speed = randRange(CONFIG.coinSpeedRange) * (width / 380);
+    coin.rotSpeedX = randRange(CONFIG.rotationSpeedRange) * (Math.random() < 0.5 ? -1 : 1);
+    coin.rotSpeedZ = randRange(CONFIG.rotationSpeedRange) * 0.4 * (Math.random() < 0.5 ? -1 : 1);
+    coin.swaySeed = Math.random() * Math.PI * 2;
+  }
+
+  for (let i = 0; i < CONFIG.coinCount; i++) {
+    coins.push(initCoin(i, CONFIG.coinCount));
+  }
+
+  let isInView = false;
+  let frame = 0;
+
+  function animate() {
+    requestAnimationFrame(animate);
+    if (!isInView) return;
+
+    frame += 1;
+    const spawnWorldY = pxToWorld(0, height * CONFIG.spawnYPercent).y;
+    const despawnWorldY = pxToWorld(0, height * CONFIG.despawnYPercent).y;
+    const totalTravel = spawnWorldY - despawnWorldY;
+
+    coins.forEach((coin) => {
+      coin.speed = Math.min(coin.speed + CONFIG.fallAcceleration, CONFIG.maxFallSpeed * (width / 380));
+      coin.mesh.position.y -= coin.speed;
+      coin.mesh.position.x += Math.sin(frame * 0.02 + coin.swaySeed) * 0.25;
+      coin.mesh.rotation.x += coin.rotSpeedX;
+      coin.mesh.rotation.z += coin.rotSpeedZ;
+
+      const progressed = (spawnWorldY - coin.mesh.position.y) / totalTravel;
+      let opacity = 1;
+      if (progressed < CONFIG.fadeInFraction) {
+        opacity = progressed / CONFIG.fadeInFraction;
+      } else if (progressed > 1 - CONFIG.fadeOutFraction) {
+        opacity = Math.max(0, (1 - progressed) / CONFIG.fadeOutFraction);
+      }
+      setOpacity(coin, opacity);
+
+      if (coin.mesh.position.y < despawnWorldY) {
+        resetCoin(coin);
+      }
+    });
+
+    renderer.render(scene, camera);
+  }
+  animate();
+
+  const observer = new IntersectionObserver(
+    (entries) => entries.forEach((entry) => { isInView = entry.isIntersecting; }),
+    { threshold: 0.2 }
+  );
+  observer.observe(container);
+
+  function onResize() {
+    width = container.clientWidth;
+    height = container.clientHeight;
+    camera.left = -width / 2;
+    camera.right = width / 2;
+    camera.top = height / 2;
+    camera.bottom = -height / 2;
+    camera.updateProjectionMatrix();
+    renderer.setSize(width, height);
+  }
+  window.addEventListener('resize', onResize);
+,());
+</script>
+</body>
+</html>
