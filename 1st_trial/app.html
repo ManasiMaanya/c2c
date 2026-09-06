@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Denial of Wallet — Security Control Plane</title>
+<link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+
+<div class="app-shell">
+  <!-- SIDEBAR NAVIGATION -->
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <a href="/" class="sidebar-logo">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+          <path d="M12 2 4 5v6c0 5 3.4 8.7 8 10 4.6-1.3 8-5 8-10V5l-8-3Z" stroke="#4f8cff" stroke-width="1.8" stroke-linejoin="round"/>
+          <path d="M12 9v6M9 12h6" stroke="#4f8cff" stroke-width="1.8" stroke-linecap="round"/>
+        </svg>
+        <span>Denial of <span class="blue">Wallet</span></span>
+      </a>
+    </div>
+
+    <div class="sidebar-env">
+      <span class="env-badge">
+        <span class="env-dot"></span>
+        Enterprise Control Plane
+      </span>
+      <span style="color: var(--text-tertiary);">v1.0</span>
+    </div>
+
+    <nav class="sidebar-nav">
+      <div class="nav-section-title">Core Operations</div>
+      
+      <a href="/app/overview" class="nav-item active" data-route="overview">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg>
+        Overview
+      </a>
+
+      <a href="/app/digital-twin" class="nav-item" data-route="digital-twin">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"/><path d="M12 3v18M3 12h18"/></svg>
+        Digital Twin
+      </a>
+
+      <a href="/app/executions" class="nav-item" data-route="executions">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+        Executions Directory
+      </a>
+
+      <div class="nav-section-title">Security & Ledger</div>
+
+      <a href="/app/firewall" class="nav-item" data-route="firewall">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        Economic Firewall
+      </a>
+
+      <a href="/app/ledger" class="nav-item" data-route="ledger">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+        Economic Ledger
+      </a>
+
+      <a href="/app/policies" class="nav-item" data-route="policies">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        Enterprise Policies
+      </a>
+    </nav>
+
+    <div class="sidebar-footer">
+      <span>Security Engine</span>
+      <span class="badge badge-success">v1.0.0</span>
+    </div>
+  </aside>
+
+  <!-- MAIN WRAPPER -->
+  <div class="main-wrapper">
+    <!-- TOP BAR -->
+    <header class="topbar">
+      <div class="topbar-left">
+        <div class="page-title" id="pageTitle">Security Control Plane</div>
+      </div>
+      
+      <div class="topbar-right">
+        <span class="system-status-badge">
+          <span class="status-pulse"></span>
+          PROTECTED
+        </span>
+        <a href="/" style="color: var(--text-secondary); text-decoration: none; font-size: 12px; font-weight: 600;">← Landing Page</a>
+      </div>
+    </header>
+
+    <!-- VIEWPORT CONTAINER -->
+    <main class="view-container" id="viewViewport">
+      <!-- Active view content renders here dynamically -->
+    </main>
+  </div>
+</div>
+
+<!-- EXECUTION DETAIL DRAWER OVERLAY -->
+<div class="drawer-overlay" id="drawerOverlay">
+  <div class="drawer-content" id="drawerContent">
+    <!-- Drawer content renders here dynamically -->
+  </div>
+</div>
+
+<script src="/static/app.js"></script>
+</body>
+</html>

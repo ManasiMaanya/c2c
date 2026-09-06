@@ -17,6 +17,10 @@ from fastapi.staticfiles import StaticFiles
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
+static_dir = os.path.join(BASE_DIR, "static")
+if os.path.exists(static_dir):
+    app.mount("/static", StaticFiles(directory=static_dir), name="static")
+
 @app.get("/")
 def read_root():
     index_path = os.path.join(BASE_DIR, "index.html")
@@ -28,6 +32,14 @@ def read_root():
         "scope": "Simulation Only - Zero Real Provider Calls",
         "version": "1.0.0"
     }
+
+@app.get("/app")
+@app.get("/app/{full_path:path}")
+def read_app_control_plane(full_path: Optional[str] = None):
+    app_path = os.path.join(BASE_DIR, "app.html")
+    if os.path.exists(app_path):
+        return FileResponse(app_path)
+    raise HTTPException(status_code=404, detail="app.html control plane not found")
 
 @app.get("/wallet.png")
 def get_wallet_image():
@@ -97,7 +109,8 @@ def api_start_execution_session(req: StartSessionRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Session initialization error: {str(e)}")
 
-from domain.models import ProposedAction, UsageEvent
+from domain.models import ProposedAction
+from providers.usage_event import UsageEvent
 
 @app.post("/digital-twin/runtime/authorize-action")
 def api_authorize_action(action: ProposedAction):
