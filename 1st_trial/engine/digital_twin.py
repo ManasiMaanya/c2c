@@ -1,18 +1,20 @@
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Tuple, Callable
 from domain.models import (
     Task, PlanOption, EnterprisePolicy, SimulationResult,
-    CurrentExecutionState, ResimulationResult
+    CurrentExecutionState, ResimulationResult, ProposedAction, FirewallDecision, ExecutionSession
 )
+from providers.usage_event import UsageEvent
 from engine.planner import PlanGenerator
 from engine.policy_evaluator import PolicyEvaluator
 from engine.plan_selector import PlanSelector
 from engine.resimulator import ResimulationEngine
+from engine.ledger import EconomicLedger
+from engine.firewall import RuntimeEconomicFirewall
 
 class DigitalTwinFacade:
     """
-    Main Facade for the Digital Twin Subsystem (Brain 1).
-    Provides unified simulation, plan selection, and resimulation capabilities.
-    NO real paid API calls are ever executed by this engine.
+    Main Facade for the Digital Twin Subsystem (Brain 1) & Runtime Economic Protection.
+    Provides unified simulation, plan selection, resimulation, runtime firewall enforcement, and economic ledger tracking.
     """
 
     @staticmethod
@@ -63,3 +65,50 @@ class DigitalTwinFacade:
         policy: Optional[EnterprisePolicy] = None
     ) -> ResimulationResult:
         return ResimulationEngine.resimulate(current_state, policy)
+
+    # -------------------------------------------------------------------------
+    # RUNTIME FIREWALL & ECONOMIC LEDGER CAPABILITIES
+    # -------------------------------------------------------------------------
+    @staticmethod
+    def start_execution_session(
+        task: Task,
+        chosen_plan_name: str = "Balanced Plan",
+        policy: Optional[EnterprisePolicy] = None
+    ) -> ExecutionSession:
+        policy = policy or EnterprisePolicy()
+        selection = DigitalTwinFacade.select_plan(task, chosen_plan_name, policy)
+        
+        if not selection["selected_plan"] or not selection["is_admissible"]:
+            raise ValueError(f"Cannot start execution session: No admissible plan found. ({selection['rejection_reasons'][0]})")
+
+        plan = PlanOption(**selection["selected_plan"])
+        session = ExecutionSession(task=task, selected_plan=plan, policy=policy)
+        RuntimeEconomicFirewall().register_session(session)
+        return session
+
+    @staticmethod
+    def authorize_action(execution_id: str, action: ProposedAction) -> FirewallDecision:
+        decision, _ = RuntimeEconomicFirewall().evaluate_action(execution_id, action)
+        return decision
+
+    @staticmethod
+    def execute_action_via_gateway(
+        execution_id: str,
+        action: ProposedAction,
+        provider_func: Optional[Callable[[], Any]] = None,
+        actual_cost_override: Optional[float] = None
+    ) -> Tuple[FirewallDecision, Any]:
+        return RuntimeEconomicFirewall().authorize_and_execute(
+            execution_id, action, provider_func=provider_func, actual_cost_override=actual_cost_override
+        )
+
+    @staticmethod
+    def record_usage_event(event: UsageEvent) -> Tuple[bool, str, float]:
+        return EconomicLedger().record_event(event)
+
+    @staticmethod
+    def get_ledger_state(execution_id: str) -> Dict[str, Any]:
+        firewall = RuntimeEconomicFirewall()
+        session = firewall.get_session(execution_id)
+        max_budget = session.selected_plan.estimated_cost if session else 0.0
+        return firewall.ledger.get_summary(execution_id, max_budget=max_budget)
