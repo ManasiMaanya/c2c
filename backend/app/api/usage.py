@@ -1,4 +1,6 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
+
+from app.services.cost_engine import calculate_cost_metrics
 
 
 router = APIRouter(
@@ -9,15 +11,23 @@ router = APIRouter(
 
 @router.get("/{agent_id}/usage")
 def get_agent_usage(agent_id: str):
-    return {
-        "agent_id": agent_id,
-        "message": "Usage analytics coming soon",
-    }
+    try:
+        return calculate_cost_metrics(agent_id)
+
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=str(exc),
+        )
 
 
 @router.get("/{agent_id}/cost")
 def get_agent_cost(agent_id: str):
-    return {
-        "agent_id": agent_id,
-        "message": "Cost analytics coming soon",
-    }
+    try:
+        return calculate_cost_metrics(agent_id)
+
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=str(exc),
+        )

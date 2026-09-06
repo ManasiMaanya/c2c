@@ -1,4 +1,6 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
+
+from app.services.policy_engine import evaluate_policy
 
 
 router = APIRouter(
@@ -8,9 +10,12 @@ router = APIRouter(
 
 
 @router.post("/{agent_id}/policy/evaluate")
-def evaluate_policy(agent_id: str):
-    return {
-        "agent_id": agent_id,
-        "action": "ALLOW",
-        "message": "Policy evaluation coming soon",
-    }
+def evaluate_agent_policy(agent_id: str):
+    try:
+        return evaluate_policy(agent_id)
+
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=str(exc),
+        )

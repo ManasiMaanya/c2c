@@ -1,5 +1,6 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 
+from app.services.attack_simulator import generate_request_flood
 
 router = APIRouter(
     prefix="/agents",
@@ -9,7 +10,12 @@ router = APIRouter(
 
 @router.post("/{agent_id}/simulate")
 def simulate_agent(agent_id: str):
-    return {
-        "agent_id": agent_id,
-        "message": "Attack simulation coming soon",
-    }
+
+    try:
+        return generate_request_flood(agent_id)
+
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=str(exc),
+        )

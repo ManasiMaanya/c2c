@@ -16,6 +16,4 @@ class UsageEventCreate(BaseModel):
     tool_calls: int = Field(ge=0)
     latency_ms: int = Field(ge=0)
 
-    estimated_cost: float = Field(ge=0)
-
     metadata: dict[str, Any] | None = None

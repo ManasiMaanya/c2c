@@ -4,6 +4,7 @@ from fastapi import APIRouter, HTTPException
 
 from app.db.supabase import supabase
 from app.schemas.event import UsageEventCreate
+from app.utils.pricing import calculate_token_cost
 
 
 router = APIRouter(
@@ -16,6 +17,12 @@ router = APIRouter(
 def create_usage_event(event: UsageEventCreate):
     timestamp = event.timestamp or datetime.now(timezone.utc)
 
+    estimated_cost = calculate_token_cost(
+        model=event.model,
+        input_tokens=event.input_tokens,
+        output_tokens=event.output_tokens,
+    )
+
     event_data = {
         "agent_id": event.agent_id,
         "timestamp": timestamp.isoformat(),
@@ -24,7 +31,7 @@ def create_usage_event(event: UsageEventCreate):
         "output_tokens": event.output_tokens,
         "tool_calls": event.tool_calls,
         "latency_ms": event.latency_ms,
-        "estimated_cost": event.estimated_cost,
+        "estimated_cost": estimated_cost,
         "metadata": event.metadata or {},
     }
 

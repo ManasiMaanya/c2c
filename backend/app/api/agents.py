@@ -51,6 +51,22 @@ def get_agent(agent_id: str):
         .table("agents")
         .select("*")
         .eq("id", agent_id)
+        .execute()
+    )
+
+    if not response.data:
+        raise HTTPException(
+            status_code=404,
+            detail="Agent not found",
+        )
+
+    return response.data[0]
+    
+    response = (
+        supabase
+        .table("agents")
+        .select("*")
+        .eq("id", agent_id)
         .single()
         .execute()
     )
@@ -94,3 +110,24 @@ def update_agent(
         )
 
     return response.data[0]
+
+@router.delete("/{agent_id}")
+def delete_agent(agent_id: str):
+    response = (
+        supabase
+        .table("agents")
+        .delete()
+        .eq("id", agent_id)
+        .execute()
+    )
+
+    if not response.data:
+        raise HTTPException(
+            status_code=404,
+            detail="Agent not found",
+        )
+
+    return {
+        "message": "Agent deleted successfully",
+        "agent_id": agent_id,
+    }
