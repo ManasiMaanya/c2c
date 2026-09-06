@@ -52,6 +52,9 @@ class DigitalTwinFacade:
                 "max_budget": sim_result.policy.max_cost,
                 "expected_steps": matched.expected_steps if matched else 0,
                 "expected_cost": matched.estimated_cost if matched else 0.0,
+                "cost_lower_bound": matched.cost_lower_bound if matched else 0.0,
+                "cost_upper_bound": matched.cost_upper_bound if matched else 0.0,
+                "prediction_confidence": matched.prediction_confidence if matched else 0.0,
                 "expected_quality": matched.estimated_quality_score if matched else 0.0,
                 "expected_risk": matched.estimated_risk_score if matched else 0.0
             }

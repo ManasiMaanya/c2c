@@ -229,6 +229,108 @@ class TestDigitalTwinSubsystem(unittest.TestCase):
         tool_cost = ProviderPricingConfig.calculate_tool_cost("custom_tool", "query", 10)
         self.assertEqual(tool_cost, 0.01) # Default tool pricing per unit
 
+    # 16. New Feature Test: Prediction Confidence & Cost Range Bounds
+    def test_prediction_confidence_and_cost_range_bounds(self):
+        plans = PlanGenerator.generate_baseline_plans(self.sample_task)
+        for p in plans:
+            self.assertTrue(50.0 <= p.prediction_confidence <= 100.0)
+            self.assertTrue(p.cost_lower_bound <= p.estimated_cost <= p.cost_upper_bound)
+
+    # 17. New Feature Test: Higher Complexity Produces Lower Confidence & Wider Range
+    def test_higher_complexity_produces_lower_confidence_and_wider_range(self):
+        simple_task = Task(description="Summarize 1 page", complexity_level="simple")
+        complex_task = Task(description="Deep research 50 papers", complexity_level="complex")
+
+        simple_plans = PlanGenerator.generate_baseline_plans(simple_task)
+        complex_plans = PlanGenerator.generate_baseline_plans(complex_task)
+
+        simple_bal = next(p for p in simple_plans if p.plan_name == "Balanced Plan")
+        complex_bal = next(p for p in complex_plans if p.plan_name == "Balanced Plan")
+
+        self.assertGreater(simple_bal.prediction_confidence, complex_bal.prediction_confidence)
+        
+        simple_range = simple_bal.cost_upper_bound - simple_bal.cost_lower_bound
+        complex_range = complex_bal.cost_upper_bound - complex_bal.cost_lower_bound
+        self.assertLess(simple_range, complex_range)
+
+    # 18. New Feature Test: Prediction Confidence Does NOT Bypass Policy
+    def test_confidence_does_not_bypass_policy(self):
+        strict_policy = EnterprisePolicy(max_cost=0.01) # Strict budget constraint
+        sim_result = DigitalTwinFacade.simulate_task(self.sample_task, strict_policy)
+
+        for p in sim_result.plans:
+            self.assertGreaterEqual(p.prediction_confidence, 50.0)
+            self.assertFalse(p.is_policy_admissible) # Policy MUST disqualify plan despite confidence
+        
+        self.assertIsNone(sim_result.recommended_plan)
+
+    # 19. New Feature Test: Trajectory Within Expected Range Recognized
+    def test_trajectory_within_expected_range_recognized(self):
+        plans = PlanGenerator.generate_baseline_plans(self.sample_task)
+        balanced_plan = next(p for p in plans if p.plan_name == "Balanced Plan")
+
+        state_normal = CurrentExecutionState(
+            execution_id="exec_norm",
+            task_id=self.sample_task.task_id,
+            current_step=4, # 4/18 steps
+            actual_cost_so_far=0.010, # Normal cost within expected range at step 4
+            actual_tokens_so_far=5000,
+            actual_tool_calls_so_far=1,
+            actual_retries_so_far=0,
+            current_model="gemini-2.5-flash",
+            budget=2.00,
+            expected_plan=balanced_plan
+        )
+        resim = ResimulationEngine.resimulate(state_normal, self.sample_policy)
+        self.assertEqual(resim.trajectory_status, "WITHIN_EXPECTED_RANGE")
+
+    # 20. New Feature Test: Trajectory Outside Expected Range Recognized
+    def test_trajectory_outside_expected_range_recognized(self):
+        plans = PlanGenerator.generate_baseline_plans(self.sample_task)
+        balanced_plan = next(p for p in plans if p.plan_name == "Balanced Plan")
+
+        state_runaway = CurrentExecutionState(
+            execution_id="exec_runaway",
+            task_id=self.sample_task.task_id,
+            current_step=4, # 4/18 steps
+            actual_cost_so_far=0.60, # Runaway cost exceeding expected range at step 4
+            actual_tokens_so_far=60000,
+            actual_tool_calls_so_far=5,
+            actual_retries_so_far=2,
+            current_model="gemini-2.5-flash",
+            budget=2.00,
+            expected_plan=balanced_plan
+        )
+        resim = ResimulationEngine.resimulate(state_runaway, self.sample_policy)
+        self.assertEqual(resim.trajectory_status, "OUTSIDE_EXPECTED_RANGE")
+
+    # 21. New Feature Test: Counterfactual Interventions Recommend Rerouting
+    def test_resimulation_recommends_counterfactual_intervention(self):
+        plans = PlanGenerator.generate_baseline_plans(self.sample_task)
+        balanced_plan = next(p for p in plans if p.plan_name == "Balanced Plan")
+
+        # Tight budget of $0.50, actual cost so far $0.45 at step 4/18
+        state_tight = CurrentExecutionState(
+            execution_id="exec_tight",
+            task_id=self.sample_task.task_id,
+            current_step=4,
+            actual_cost_so_far=0.45,
+            actual_tokens_so_far=45000,
+            actual_tool_calls_so_far=3,
+            actual_retries_so_far=1,
+            current_model="gemini-2.5-flash",
+            budget=0.50, # Budget almost exhausted!
+            expected_plan=balanced_plan
+        )
+        resim = ResimulationEngine.resimulate(state_tight, self.sample_policy)
+        
+        # Continuation will breach $0.50 budget, so an intervention must be recommended
+        self.assertIsNotNone(resim.recommended_future_path)
+        self.assertNotEqual(resim.recommended_future_path.strategy_name, "Continue Current Route")
+        self.assertIn(resim.recommended_future_path.strategy_name, ["Switch Model to Flash Lite", "Reduce Tools Scope", "Stop Execution"])
+        self.assertIn("Recommended intervention", resim.resimulation_explanation)
+
 if __name__ == "__main__":
     unittest.main()
+
 

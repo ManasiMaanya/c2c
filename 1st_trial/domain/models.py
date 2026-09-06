@@ -94,6 +94,9 @@ class PlanOption(BaseModel):
     expected_retries: int
     expected_steps: int
     estimated_cost: float
+    cost_lower_bound: float = 0.0
+    cost_upper_bound: float = 0.0
+    prediction_confidence: float = 85.0 # 0.0 to 100.0%
     estimated_quality_score: float
     estimated_risk_score: float
     is_policy_admissible: bool = True
@@ -107,18 +110,18 @@ class PlanOption(BaseModel):
             raise ValueError("Plan metrics counts must be non-negative")
         return v
 
-    @field_validator("estimated_cost")
+    @field_validator("estimated_cost", "cost_lower_bound", "cost_upper_bound")
     @classmethod
     def validate_cost(cls, v: float) -> float:
-        return check_finite_non_negative(v, "estimated_cost")
+        return check_finite_non_negative(v, "Plan cost metric")
 
-    @field_validator("estimated_quality_score", "estimated_risk_score")
+    @field_validator("estimated_quality_score", "estimated_risk_score", "prediction_confidence")
     @classmethod
     def validate_scores(cls, v: float) -> float:
-        return check_score_range(v, "Plan score")
+        return check_score_range(v, "Plan score/confidence")
 
     @model_validator(mode="after")
-    def validate_cost_conservation(self) -> "PlanOption":
+    def validate_cost_invariants(self) -> "PlanOption":
         if self.usage_breakdown:
             llm_c = float(self.usage_breakdown.get("llm_cost", 0.0))
             tool_c = float(self.usage_breakdown.get("tool_cost", 0.0))
@@ -127,6 +130,12 @@ class PlanOption(BaseModel):
                 raise ValueError(
                     f"Cost conservation invariant violated: estimated_cost ({self.estimated_cost}) "
                     f"does not match sum of usage_breakdown ({breakdown_sum})"
+                )
+        if self.cost_lower_bound > 0 or self.cost_upper_bound > 0:
+            if not (self.cost_lower_bound - 0.0001 <= self.estimated_cost <= self.cost_upper_bound + 0.0001):
+                raise ValueError(
+                    f"Cost uncertainty range invariant violated: lower_bound ({self.cost_lower_bound}) "
+                    f"<= estimated_cost ({self.estimated_cost}) <= upper_bound ({self.cost_upper_bound})"
                 )
         return self
 
@@ -212,7 +221,12 @@ class ResimulationResult(BaseModel):
     execution_id: str
     current_state: CurrentExecutionState
     trajectory_deviation_percent: float
+    expected_cost_at_current_step: float = 0.0
+    predicted_cost_range_at_current_step: Dict[str, float] = Field(default_factory=dict) # {"lower": x, "upper": y}
+    trajectory_status: str = "WITHIN_EXPECTED_RANGE" # "WITHIN_EXPECTED_RANGE" or "OUTSIDE_EXPECTED_RANGE"
+    prediction_confidence: float = 85.0
     future_paths: List[FuturePathOption]
     recommended_future_path: Optional[FuturePathOption] = None
     resimulation_explanation: str
+
 

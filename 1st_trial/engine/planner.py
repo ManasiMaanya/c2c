@@ -1,4 +1,4 @@
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Tuple
 from domain.models import Task, PlanOption
 from providers.pricing import ProviderPricingConfig
 
@@ -10,6 +10,32 @@ class PlanGenerator:
       2. Plan 2 — Balanced (Balanced model, moderate research)
       3. Plan 3 — Quality Optimized (Pro model, extensive research & tool calls)
     """
+
+    @staticmethod
+    def _calculate_confidence_and_range(
+        complexity: str,
+        model: str,
+        steps: int,
+        tool_calls: int,
+        retries: int,
+        estimated_cost: float
+    ) -> Tuple[float, float, float]:
+        base_conf = 95.0
+        step_penalty = steps * 1.0
+        tool_penalty = tool_calls * 1.8
+        retry_penalty = retries * 3.0
+        
+        model_penalty = 2.0 if "lite" in model else (4.0 if "flash" in model else 7.0)
+        complexity_penalty = 0.0 if complexity == "simple" else (3.0 if complexity == "medium" else 6.0)
+        
+        total_penalty = step_penalty + tool_penalty + retry_penalty + model_penalty + complexity_penalty
+        confidence = max(50.0, min(98.0, round(base_conf - total_penalty, 1)))
+        
+        uncertainty_pct = (100.0 - confidence) / 100.0
+        lower_bound = round(max(0.0, estimated_cost * (1.0 - (uncertainty_pct * 0.75))), 4)
+        upper_bound = round(estimated_cost * (1.0 + (uncertainty_pct * 1.25)), 4)
+        
+        return confidence, lower_bound, upper_bound
 
     @staticmethod
     def generate_baseline_plans(task: Task) -> List[PlanOption]:
@@ -34,6 +60,10 @@ class PlanGenerator:
         cost_tool = round(ProviderPricingConfig.calculate_tool_cost("serpapi", "search", cost_tools), 6)
         total_cost_1 = round(cost_llm + cost_tool, 4)
 
+        conf_1, lower_1, upper_1 = PlanGenerator._calculate_confidence_and_range(
+            complexity, "gemini-2.5-flash-lite", cost_steps, cost_tools, cost_retries, total_cost_1
+        )
+
         plan_1 = PlanOption(
             plan_id=f"plan_cost_{task.task_id[:8]}",
             plan_name="Cost Optimized Plan",
@@ -45,6 +75,9 @@ class PlanGenerator:
             expected_retries=cost_retries,
             expected_steps=cost_steps,
             estimated_cost=total_cost_1,
+            cost_lower_bound=lower_1,
+            cost_upper_bound=upper_1,
+            prediction_confidence=conf_1,
             estimated_quality_score=72.0,
             estimated_risk_score=15.0,
             usage_breakdown={"llm_cost": cost_llm, "tool_cost": cost_tool}
@@ -64,6 +97,10 @@ class PlanGenerator:
         bal_tool = round(ProviderPricingConfig.calculate_tool_cost("serpapi", "search", bal_tools), 6)
         total_cost_2 = round(bal_llm + bal_tool, 4)
 
+        conf_2, lower_2, upper_2 = PlanGenerator._calculate_confidence_and_range(
+            complexity, "gemini-2.5-flash", bal_steps, bal_tools, bal_retries, total_cost_2
+        )
+
         plan_2 = PlanOption(
             plan_id=f"plan_bal_{task.task_id[:8]}",
             plan_name="Balanced Plan",
@@ -75,6 +112,9 @@ class PlanGenerator:
             expected_retries=bal_retries,
             expected_steps=bal_steps,
             estimated_cost=total_cost_2,
+            cost_lower_bound=lower_2,
+            cost_upper_bound=upper_2,
+            prediction_confidence=conf_2,
             estimated_quality_score=89.0,
             estimated_risk_score=21.0,
             usage_breakdown={"llm_cost": bal_llm, "tool_cost": bal_tool}
@@ -94,6 +134,10 @@ class PlanGenerator:
         qual_tool = round(ProviderPricingConfig.calculate_tool_cost("serpapi", "search", qual_tools) + ProviderPricingConfig.calculate_tool_cost("elevenlabs", "tts", 1000), 6)
         total_cost_3 = round(qual_llm + qual_tool, 4)
 
+        conf_3, lower_3, upper_3 = PlanGenerator._calculate_confidence_and_range(
+            complexity, "gemini-3.1-pro", qual_steps, qual_tools, qual_retries, total_cost_3
+        )
+
         plan_3 = PlanOption(
             plan_id=f"plan_qual_{task.task_id[:8]}",
             plan_name="Quality Optimized Plan",
@@ -105,10 +149,14 @@ class PlanGenerator:
             expected_retries=qual_retries,
             expected_steps=qual_steps,
             estimated_cost=total_cost_3,
+            cost_lower_bound=lower_3,
+            cost_upper_bound=upper_3,
+            prediction_confidence=conf_3,
             estimated_quality_score=96.0,
             estimated_risk_score=45.0,
             usage_breakdown={"llm_cost": qual_llm, "tool_cost": qual_tool}
         )
 
         return [plan_1, plan_2, plan_3]
+
 

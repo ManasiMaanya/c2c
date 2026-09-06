@@ -12,6 +12,9 @@ class ResimulationEngine:
         budget = min(state.budget, policy.max_cost) if state.budget > 0 else policy.max_cost
 
         expected_total = state.expected_plan.estimated_cost if state.expected_plan else 0.35
+        lower_bound_total = state.expected_plan.cost_lower_bound if (state.expected_plan and state.expected_plan.cost_lower_bound > 0) else round(expected_total * 0.85, 4)
+        upper_bound_total = state.expected_plan.cost_upper_bound if (state.expected_plan and state.expected_plan.cost_upper_bound > 0) else round(expected_total * 1.20, 4)
+        confidence = state.expected_plan.prediction_confidence if state.expected_plan else 85.0
         expected_steps = state.expected_plan.expected_steps if state.expected_plan else 10
         
         if expected_steps > 0:
@@ -19,7 +22,16 @@ class ResimulationEngine:
         else:
             progress_ratio = 1.0
 
-        expected_cost_so_far = progress_ratio * expected_total
+        expected_cost_so_far = round(progress_ratio * expected_total, 4)
+        expected_lower_so_far = round(progress_ratio * lower_bound_total, 4)
+        expected_upper_so_far = round(progress_ratio * upper_bound_total, 4)
+
+        if expected_lower_so_far <= state.actual_cost_so_far <= expected_upper_so_far:
+            trajectory_status = "WITHIN_EXPECTED_RANGE"
+            status_msg = f"Normal deviation: Actual cost (${state.actual_cost_so_far:.2f}) is within predicted range (${expected_lower_so_far:.2f}–${expected_upper_so_far:.2f})."
+        else:
+            trajectory_status = "OUTSIDE_EXPECTED_RANGE"
+            status_msg = f"Concerning deviation: Actual cost (${state.actual_cost_so_far:.2f}) is OUTSIDE predicted range (${expected_lower_so_far:.2f}–${expected_upper_so_far:.2f})."
 
         if expected_cost_so_far > 0:
             deviation_pct = round(((state.actual_cost_so_far - expected_cost_so_far) / expected_cost_so_far) * 100, 1)
@@ -88,24 +100,36 @@ class ResimulationEngine:
         if admissible_futures:
             admissible_futures.sort(key=lambda x: x.expected_quality_score, reverse=True)
             recommended = admissible_futures[0]
-            explanation = (
-                f"Resimulation completed. Trajectory deviation is {deviation_pct}% above expected. "
-                f"Recommended reroute: '{recommended.strategy_name}' (Projected cost: ${recommended.projected_final_cost:.2f}, "
-                f"Quality: Q{int(recommended.expected_quality_score)})."
-            )
+            if recommended.strategy_name == "Continue Current Route":
+                explanation = (
+                    f"Resimulation completed. Trajectory deviation is {deviation_pct}% ({trajectory_status}). "
+                    f"Recommended intervention: '{recommended.strategy_name}' (Projected cost: ${recommended.projected_final_cost:.2f}, "
+                    f"Quality: Q{int(recommended.expected_quality_score)}). {status_msg}"
+                )
+            else:
+                explanation = (
+                    f"Recommended intervention: '{recommended.strategy_name}'. "
+                    f"Reason: Continuation breaches budget or safety ceiling ({trajectory_status}, {deviation_pct}% deviation). "
+                    f"Switching strategy preserves maximum quality (Q{int(recommended.expected_quality_score)}) while keeping projected cost (${recommended.projected_final_cost:.2f}) within budget (${budget:.2f})."
+                )
         else:
             recommended = path_switch if path_switch.is_policy_admissible else path_stop
             explanation = (
-                f"Trajectory deviation (+{deviation_pct}%) breached budget threshold. "
-                f"Rerouting to '{recommended.strategy_name}' to contain further economic loss."
+                f"Trajectory deviation ({deviation_pct}%) breached budget threshold. "
+                f"Recommended intervention: '{recommended.strategy_name}' to contain further economic loss."
             )
 
         return ResimulationResult(
             execution_id=state.execution_id,
             current_state=state,
             trajectory_deviation_percent=deviation_pct,
+            expected_cost_at_current_step=expected_cost_so_far,
+            predicted_cost_range_at_current_step={"lower": expected_lower_so_far, "upper": expected_upper_so_far},
+            trajectory_status=trajectory_status,
+            prediction_confidence=confidence,
             future_paths=future_paths,
             recommended_future_path=recommended,
             resimulation_explanation=explanation
         )
+
 
