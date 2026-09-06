@@ -9,12 +9,16 @@ class ResimulationEngine:
         policy: Optional[EnterprisePolicy] = None
     ) -> ResimulationResult:
         policy = policy or EnterprisePolicy()
-        budget = state.budget or policy.max_cost
+        budget = min(state.budget, policy.max_cost) if state.budget > 0 else policy.max_cost
 
         expected_total = state.expected_plan.estimated_cost if state.expected_plan else 0.35
         expected_steps = state.expected_plan.expected_steps if state.expected_plan else 10
         
-        progress_ratio = max(0.1, min(1.0, state.current_step / (expected_steps or 1)))
+        if expected_steps > 0:
+            progress_ratio = max(0.0, min(1.0, state.current_step / expected_steps))
+        else:
+            progress_ratio = 1.0
+
         expected_cost_so_far = progress_ratio * expected_total
 
         if expected_cost_so_far > 0:
@@ -22,7 +26,7 @@ class ResimulationEngine:
         else:
             deviation_pct = 0.0
 
-        remaining_steps = max(1, expected_steps - state.current_step)
+        remaining_steps = max(0, expected_steps - state.current_step)
 
         # 1. Continue Current Route
         cont_remaining_cost = round(remaining_steps * 0.04 * (1.0 + max(0.0, deviation_pct / 100.0)), 4)
@@ -33,9 +37,9 @@ class ResimulationEngine:
             projected_final_cost=cont_final_cost,
             expected_remaining_cost=cont_remaining_cost,
             expected_quality_score=state.expected_plan.estimated_quality_score if state.expected_plan else 89.0,
-            expected_risk_score=min(100.0, 21.0 + (deviation_pct * 0.4))
+            expected_risk_score=min(100.0, max(0.0, 21.0 + (deviation_pct * 0.4)))
         )
-        if cont_final_cost > budget or cont_final_cost > policy.max_cost:
+        if cont_final_cost > budget:
             path_continue.is_policy_admissible = False
             path_continue.rejection_reasons.append(f"Projected final cost (${cont_final_cost:.2f}) breaches budget (${budget:.2f})")
 
@@ -52,7 +56,7 @@ class ResimulationEngine:
         )
         if switch_final_cost > budget:
             path_switch.is_policy_admissible = False
-            path_switch.rejection_reasons.append(f"Cost (${switch_final_cost:.2f}) exceeds budget")
+            path_switch.rejection_reasons.append(f"Cost (${switch_final_cost:.2f}) exceeds budget (${budget:.2f})")
 
         # 3. Reduce Tools Scope
         reduce_remaining_cost = round(remaining_steps * 0.005, 4)
@@ -65,6 +69,9 @@ class ResimulationEngine:
             expected_quality_score=75.0,
             expected_risk_score=25.0
         )
+        if reduce_final_cost > budget:
+            path_reduce.is_policy_admissible = False
+            path_reduce.rejection_reasons.append(f"Cost (${reduce_final_cost:.2f}) exceeds budget (${budget:.2f})")
 
         # 4. Stop Execution
         path_stop = FuturePathOption(
@@ -101,3 +108,4 @@ class ResimulationEngine:
             recommended_future_path=recommended,
             resimulation_explanation=explanation
         )
+

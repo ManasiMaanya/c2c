@@ -1,4 +1,4 @@
-from typing import List, Tuple
+from typing import List
 from domain.models import PlanOption, EnterprisePolicy
 
 class PolicyEvaluator:
@@ -31,7 +31,7 @@ class PolicyEvaluator:
             if total_tokens > policy.max_tokens:
                 reasons.append(f"Total expected tokens ({total_tokens}) exceeds token ceiling ({policy.max_tokens})")
 
-            if policy.allowed_models and plan.selected_model not in policy.allowed_models:
+            if policy.allowed_models and len(policy.allowed_models) > 0 and plan.selected_model not in policy.allowed_models:
                 reasons.append(f"Model '{plan.selected_model}' is not in enterprise allowed models list ({policy.allowed_models})")
 
             if reasons:
@@ -44,3 +44,4 @@ class PolicyEvaluator:
             evaluated_plans.append(plan)
 
         return evaluated_plans
+

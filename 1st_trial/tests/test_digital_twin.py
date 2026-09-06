@@ -127,5 +127,108 @@ class TestDigitalTwinSubsystem(unittest.TestCase):
         self.assertEqual(tool_evt.provider, "serpapi")
         self.assertEqual(tool_evt.estimated_cost, 0.02)
 
+    # 9. Adversarial Test: Negative Token Counts / Units Raise ValueError
+    def test_adversarial_negative_token_counts_raises_error(self):
+        with self.assertRaises(ValueError):
+            ProviderPricingConfig.calculate_llm_cost("gemini-2.5-flash", -500, 1000)
+        with self.assertRaises(ValueError):
+            ProviderPricingConfig.calculate_tool_cost("serpapi", "search", -1)
+
+    # 10. Adversarial Test: NaN and Inf Cost/Score Inputs Raise ValueError
+    def test_adversarial_nan_and_inf_inputs_rejected(self):
+        with self.assertRaises(ValueError):
+            EnterprisePolicy(max_cost=float("nan"))
+        with self.assertRaises(ValueError):
+            EnterprisePolicy(max_cost=float("inf"))
+
+    # 11. Invariant Test: Cost Conservation Invariant Strictly Enforced
+    def test_cost_conservation_invariant_strictly_enforced(self):
+        plans = PlanGenerator.generate_baseline_plans(self.sample_task)
+        for p in plans:
+            breakdown_sum = round(p.usage_breakdown["llm_cost"] + p.usage_breakdown["tool_cost"], 4)
+            self.assertAlmostEqual(p.estimated_cost, breakdown_sum, places=4)
+
+        # Mutating breakdown to mismatch cost must raise ValueError
+        with self.assertRaises(ValueError):
+            PlanOption(
+                plan_id="tampered_plan",
+                plan_name="Tampered Plan",
+                selected_model="gemini-2.5-flash",
+                expected_llm_calls=5,
+                expected_input_tokens=1000,
+                expected_output_tokens=500,
+                expected_tool_calls=2,
+                expected_retries=1,
+                expected_steps=7,
+                estimated_cost=10.00, # Cost mismatch!
+                estimated_quality_score=80.0,
+                estimated_risk_score=20.0,
+                usage_breakdown={"llm_cost": 1.00, "tool_cost": 1.00}
+            )
+
+    # 12. Invariant Test: Ultra Strict Policy Rejects ALL Plans and Returns None Recommended
+    def test_ultra_strict_policy_rejects_all_plans(self):
+        ultra_strict_policy = EnterprisePolicy(max_cost=0.0001, min_quality=99.0)
+        sim_result = DigitalTwinFacade.simulate_task(self.sample_task, ultra_strict_policy)
+
+        self.assertIsNone(sim_result.recommended_plan)
+        self.assertTrue(sim_result.selection_explanation.startswith("NO_FEASIBLE_PLAN"))
+        for p in sim_result.plans:
+            self.assertFalse(p.is_policy_admissible)
+            self.assertGreater(len(p.rejection_reasons), 0)
+
+    # 13. Boundary Test: Policy Boundary Equality Is Admissible
+    def test_policy_boundary_equality_is_admissible(self):
+        exact_policy = EnterprisePolicy(max_cost=0.50, min_quality=80.0)
+        test_plan = PlanOption(
+            plan_id="p_exact",
+            plan_name="Exact Plan",
+            selected_model="gemini-2.5-flash",
+            expected_llm_calls=5,
+            expected_input_tokens=1000,
+            expected_output_tokens=500,
+            expected_tool_calls=2,
+            expected_retries=1,
+            expected_steps=7,
+            estimated_cost=0.50, # Exactly equals max_cost
+            estimated_quality_score=80.0, # Exactly equals min_quality
+            estimated_risk_score=20.0,
+            usage_breakdown={"llm_cost": 0.40, "tool_cost": 0.10}
+        )
+        evaluated = PolicyEvaluator.evaluate_plans([test_plan], exact_policy)
+        self.assertTrue(evaluated[0].is_policy_admissible)
+
+    # 14. Edge Case Test: Resimulation Zero Remaining Steps & Overshoot
+    def test_resimulation_zero_remaining_steps_and_overshoot(self):
+        plans = PlanGenerator.generate_baseline_plans(self.sample_task)
+        balanced_plan = next(p for p in plans if p.plan_name == "Balanced Plan")
+
+        # Current step exceeds expected steps (overshoot)
+        state_overshoot = CurrentExecutionState(
+            execution_id="exec_overshoot",
+            task_id=self.sample_task.task_id,
+            current_step=balanced_plan.expected_steps + 5,
+            actual_cost_so_far=0.50,
+            actual_tokens_so_far=50000,
+            actual_tool_calls_so_far=6,
+            actual_retries_so_far=2,
+            current_model="gemini-2.5-flash",
+            budget=2.00,
+            expected_plan=balanced_plan
+        )
+        resim = ResimulationEngine.resimulate(state_overshoot, self.sample_policy)
+        cont_path = next(p for p in resim.future_paths if p.strategy_name == "Continue Current Route")
+        self.assertEqual(cont_path.expected_remaining_cost, 0.0)
+        self.assertEqual(cont_path.projected_final_cost, 0.50)
+
+    # 15. Fallback Test: Unknown Provider and Model Handling
+    def test_unknown_provider_and_model_fallback(self):
+        llm_cost = ProviderPricingConfig.calculate_llm_cost("unknown-future-model-x", 100000, 50000)
+        self.assertGreater(llm_cost, 0.0) # Uses default flash fallback pricing
+
+        tool_cost = ProviderPricingConfig.calculate_tool_cost("custom_tool", "query", 10)
+        self.assertEqual(tool_cost, 0.01) # Default tool pricing per unit
+
 if __name__ == "__main__":
     unittest.main()
+

@@ -1,4 +1,5 @@
 from typing import Dict, Any
+import math
 
 class ProviderPricingConfig:
     """
@@ -37,6 +38,11 @@ class ProviderPricingConfig:
 
     @classmethod
     def calculate_llm_cost(cls, model: str, input_tokens: int, output_tokens: int) -> float:
+        if input_tokens < 0 or output_tokens < 0:
+            raise ValueError(f"Token counts cannot be negative: input_tokens={input_tokens}, output_tokens={output_tokens}")
+        if not isinstance(model, str) or not model.strip():
+            model = "gemini-2.5-flash"
+        
         pricing = cls.LLM_PRICING.get(model, cls.LLM_PRICING["gemini-2.5-flash"])
         input_cost = (input_tokens / 1_000_000.0) * pricing["input_per_1m"]
         output_cost = (output_tokens / 1_000_000.0) * pricing["output_per_1m"]
@@ -44,10 +50,15 @@ class ProviderPricingConfig:
 
     @classmethod
     def calculate_tool_cost(cls, provider: str, operation: str, units: int = 1) -> float:
-        if provider == "serpapi":
+        if units < 0:
+            raise ValueError(f"Tool execution units cannot be negative: units={units}")
+        provider_clean = (provider or "").lower().strip()
+        
+        if provider_clean == "serpapi":
             return round(units * cls.TOOL_PRICING["serpapi"]["search_per_call"], 6)
-        elif provider == "elevenlabs":
+        elif provider_clean == "elevenlabs":
             return round((units / 1000.0) * cls.TOOL_PRICING["elevenlabs"]["tts_per_1k_chars"], 6)
-        elif provider == "code_sandbox":
+        elif provider_clean == "code_sandbox":
             return round(units * cls.TOOL_PRICING["code_sandbox"]["execution_per_call"], 6)
         return round(units * 0.001, 6)
+

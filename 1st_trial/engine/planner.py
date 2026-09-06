@@ -13,10 +13,11 @@ class PlanGenerator:
 
     @staticmethod
     def generate_baseline_plans(task: Task) -> List[PlanOption]:
+        complexity = (task.complexity_level or "medium").lower().strip()
         mult = 1.0
-        if task.complexity_level == "complex":
+        if complexity == "complex":
             mult = 1.8
-        elif task.complexity_level == "simple":
+        elif complexity == "simple":
             mult = 0.7
 
         # -------------------------------------------------------------
@@ -29,8 +30,8 @@ class PlanGenerator:
         cost_retries = 1
         cost_steps = cost_calls + cost_tools
 
-        cost_llm = ProviderPricingConfig.calculate_llm_cost("gemini-2.5-flash-lite", cost_in_tokens, cost_out_tokens)
-        cost_tool = ProviderPricingConfig.calculate_tool_cost("serpapi", "search", cost_tools)
+        cost_llm = round(ProviderPricingConfig.calculate_llm_cost("gemini-2.5-flash-lite", cost_in_tokens, cost_out_tokens), 6)
+        cost_tool = round(ProviderPricingConfig.calculate_tool_cost("serpapi", "search", cost_tools), 6)
         total_cost_1 = round(cost_llm + cost_tool, 4)
 
         plan_1 = PlanOption(
@@ -59,8 +60,8 @@ class PlanGenerator:
         bal_retries = 2
         bal_steps = bal_calls + bal_tools
 
-        bal_llm = ProviderPricingConfig.calculate_llm_cost("gemini-2.5-flash", bal_in_tokens, bal_out_tokens)
-        bal_tool = ProviderPricingConfig.calculate_tool_cost("serpapi", "search", bal_tools)
+        bal_llm = round(ProviderPricingConfig.calculate_llm_cost("gemini-2.5-flash", bal_in_tokens, bal_out_tokens), 6)
+        bal_tool = round(ProviderPricingConfig.calculate_tool_cost("serpapi", "search", bal_tools), 6)
         total_cost_2 = round(bal_llm + bal_tool, 4)
 
         plan_2 = PlanOption(
@@ -89,8 +90,8 @@ class PlanGenerator:
         qual_retries = 3
         qual_steps = qual_calls + qual_tools
 
-        qual_llm = ProviderPricingConfig.calculate_llm_cost("gemini-3.1-pro", qual_in_tokens, qual_out_tokens)
-        qual_tool = ProviderPricingConfig.calculate_tool_cost("serpapi", "search", qual_tools) + ProviderPricingConfig.calculate_tool_cost("elevenlabs", "tts", 1000)
+        qual_llm = round(ProviderPricingConfig.calculate_llm_cost("gemini-3.1-pro", qual_in_tokens, qual_out_tokens), 6)
+        qual_tool = round(ProviderPricingConfig.calculate_tool_cost("serpapi", "search", qual_tools) + ProviderPricingConfig.calculate_tool_cost("elevenlabs", "tts", 1000), 6)
         total_cost_3 = round(qual_llm + qual_tool, 4)
 
         plan_3 = PlanOption(
@@ -110,3 +111,4 @@ class PlanGenerator:
         )
 
         return [plan_1, plan_2, plan_3]
+

@@ -46,14 +46,14 @@ class DigitalTwinFacade:
             "task_id": task.task_id,
             "selected_plan": matched.model_dump() if matched else None,
             "is_admissible": matched.is_policy_admissible if matched else False,
-            "rejection_reasons": matched.rejection_reasons if matched else [],
+            "rejection_reasons": matched.rejection_reasons if matched else ["No feasible plan selected due to enterprise policy violations"],
             "execution_representation": {
-                "model": matched.selected_model if matched else "gemini-2.5-flash",
+                "model": matched.selected_model if matched else "none",
                 "max_budget": sim_result.policy.max_cost,
-                "expected_steps": matched.expected_steps if matched else 10,
-                "expected_cost": matched.estimated_cost if matched else 0.35,
-                "expected_quality": matched.estimated_quality_score if matched else 89.0,
-                "expected_risk": matched.estimated_risk_score if matched else 21.0
+                "expected_steps": matched.expected_steps if matched else 0,
+                "expected_cost": matched.estimated_cost if matched else 0.0,
+                "expected_quality": matched.estimated_quality_score if matched else 0.0,
+                "expected_risk": matched.estimated_risk_score if matched else 0.0
             }
         }
 

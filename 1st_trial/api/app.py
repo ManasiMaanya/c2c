@@ -26,8 +26,13 @@ class SimulateRequest(BaseModel):
 
 @app.post("/digital-twin/simulate")
 def api_simulate_task(req: SimulateRequest):
-    result = DigitalTwinFacade.simulate_task(req.task, req.policy)
-    return result.model_dump()
+    try:
+        result = DigitalTwinFacade.simulate_task(req.task, req.policy)
+        return result.model_dump()
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Simulation error: {str(e)}")
 
 class SelectPlanRequest(BaseModel):
     task: Task
@@ -36,7 +41,12 @@ class SelectPlanRequest(BaseModel):
 
 @app.post("/digital-twin/select-plan")
 def api_select_plan(req: SelectPlanRequest):
-    return DigitalTwinFacade.select_plan(req.task, req.chosen_plan_name, req.policy)
+    try:
+        return DigitalTwinFacade.select_plan(req.task, req.chosen_plan_name, req.policy)
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Plan selection error: {str(e)}")
 
 class ResimulateRequest(BaseModel):
     current_state: CurrentExecutionState
@@ -44,5 +54,11 @@ class ResimulateRequest(BaseModel):
 
 @app.post("/digital-twin/resimulate")
 def api_resimulate_execution(req: ResimulateRequest):
-    result = DigitalTwinFacade.resimulate_execution(req.current_state, req.policy)
-    return result.model_dump()
+    try:
+        result = DigitalTwinFacade.resimulate_execution(req.current_state, req.policy)
+        return result.model_dump()
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Resimulation error: {str(e)}")
+
