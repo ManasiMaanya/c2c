@@ -9,6 +9,7 @@ from app.api.risk import router as risk_router
 from app.api.digital_twin import router as digital_twin_router
 from app.api.policy import router as policy_router
 from app.api.simulation import router as simulation_router
+from app.api.dashboard import router as dashboard_router
 
 app = FastAPI(
     title="Denial of Wallet",
@@ -25,6 +26,7 @@ app.include_router(risk_router)
 app.include_router(digital_twin_router)
 app.include_router(policy_router)
 app.include_router(simulation_router)
+app.include_router(dashboard_router)
 
 # Mount frontend files from 1st_trial
 from pathlib import Path

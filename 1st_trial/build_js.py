@@ -5,93 +5,17 @@ js_code = r"""/* Denial of Wallet (DoW) — Enterprise Application Client */
 (function () {
   'use strict';
 
-  // Demo Dataset matching PostgreSQL Schema (public.agents, usage_events, attack_events, risk_snapshots, policy_actions)
-  const DemoData = {
-    agents: [
-      {
-        id: "ag_8801_cs",
-        name: "Customer Support Agent",
-        model: "gemini-2.5-flash",
-        budget: 100.00,
-        status: "active",
-        created_at: "2026-09-06T10:00:00Z",
-        actual_spend: 14.2800,
-        risk_score: 28,
-        risk_level: "low",
-        burn_rate: 1.85,
-        projected_1h: 1.85,
-        projected_24h: 44.40,
-        time_to_exhaustion: 2780 // minutes
-      },
-      {
-        id: "ag_8802_code",
-        name: "Code Assistant Agent",
-        model: "gemini-3.1-pro",
-        budget: 150.00,
-        status: "active",
-        created_at: "2026-09-06T11:30:00Z",
-        actual_spend: 28.4400,
-        risk_score: 65,
-        risk_level: "high",
-        burn_rate: 5.40,
-        projected_1h: 5.40,
-        projected_24h: 129.60,
-        time_to_exhaustion: 1350
-      },
-      {
-        id: "ag_8803_fin",
-        name: "Finance Analytics Bot",
-        model: "gemini-2.5-flash-lite",
-        budget: 50.00,
-        status: "paused",
-        created_at: "2026-09-06T12:15:00Z",
-        actual_spend: 6.0000,
-        risk_score: 15,
-        risk_level: "low",
-        burn_rate: 0.40,
-        projected_1h: 0.40,
-        projected_24h: 9.60,
-        time_to_exhaustion: 6600
-      }
-    ],
-
-    usageEvents: [
-      { id: "evt_9901", agent_id: "ag_8801_cs", agent_name: "Customer Support Agent", timestamp: "2026-09-06T18:30:12Z", model: "gemini-2.5-flash", input_tokens: 14200, output_tokens: 3800, tool_calls: 2, latency_ms: 640, estimated_cost: 0.0022, actual_cost: 0.0022, operation: "generate_content", provider: "gemini" },
-      { id: "evt_9902", agent_id: "ag_8801_cs", agent_name: "Customer Support Agent", timestamp: "2026-09-06T18:32:45Z", model: "serpapi", input_tokens: 0, output_tokens: 0, tool_calls: 1, latency_ms: 310, estimated_cost: 0.0100, actual_cost: 0.0100, operation: "search", provider: "serpapi" },
-      { id: "evt_9903", agent_id: "ag_8802_code", agent_name: "Code Assistant Agent", timestamp: "2026-09-06T18:35:00Z", model: "gemini-3.1-pro", input_tokens: 42000, output_tokens: 12500, tool_calls: 5, latency_ms: 1820, estimated_cost: 0.1150, actual_cost: 0.1150, operation: "generate_content", provider: "gemini" },
-      { id: "evt_9904", agent_id: "ag_8802_code", agent_name: "Code Assistant Agent", timestamp: "2026-09-06T18:38:22Z", model: "code_sandbox", input_tokens: 0, output_tokens: 0, tool_calls: 2, latency_ms: 450, estimated_cost: 0.0100, actual_cost: 0.0100, operation: "execute", provider: "code_sandbox" },
-      { id: "evt_9905", agent_id: "ag_8803_fin", agent_name: "Finance Analytics Bot", timestamp: "2026-09-06T18:40:11Z", model: "elevenlabs", input_tokens: 0, output_tokens: 0, tool_calls: 1, latency_ms: 920, estimated_cost: 0.0300, actual_cost: 0.0300, operation: "text_to_speech", provider: "elevenlabs" }
-    ],
-
-    attackEvents: [
-      { id: "atk_101", agent_id: "ag_8802_code", agent_name: "Code Assistant Agent", timestamp: "2026-09-06T18:10:00Z", attack_type: "DoW Rate Spike", severity: 82, confidence: 94.5, details: { description: "Rapid burst of 45 high-token requests in 10s", blocked_cost: 0.3800 } },
-      { id: "atk_102", agent_id: "ag_8801_cs", agent_name: "Customer Support Agent", timestamp: "2026-09-06T17:45:00Z", attack_type: "Recursive Loop Attack", severity: 78, confidence: 89.0, details: { description: "Hallucinated tool calling loop detected", blocked_cost: 0.2200 } },
-      { id: "atk_103", agent_id: "ag_8802_code", agent_name: "Code Assistant Agent", timestamp: "2026-09-06T16:20:00Z", attack_type: "Model Escalation Exploit", severity: 65, confidence: 91.2, details: { description: "Attempted unpermitted switch to Pro model", blocked_cost: 0.5000 } }
-    ],
-
-    policyActions: [
-      { id: "pa_501", agent_id: "ag_8802_code", timestamp: "2026-09-06T18:38:22Z", action: "block", reason: "Projected cost $1.0700 exceeds selected budget cap $1.0000", risk_score: 82, metadata: { projected_cost: 1.07, max_budget: 1.00 } },
-      { id: "pa_502", agent_id: "ag_8802_code", timestamp: "2026-09-06T18:35:00Z", action: "model_downgrade", reason: "High token burn rate detected. Model downgraded from Gemini Pro to Flash", risk_score: 65, metadata: { previous_model: "gemini-3.1-pro", new_model: "gemini-2.5-flash" } },
-      { id: "pa_503", agent_id: "ag_8801_cs", timestamp: "2026-09-06T18:32:45Z", action: "throttle", reason: "SerpApi search tool frequency exceeded 2 calls/min threshold", risk_score: 45, metadata: { tool: "serpapi", delay_ms: 2000 } },
-      { id: "pa_504", agent_id: "ag_8801_cs", timestamp: "2026-09-06T18:30:12Z", action: "allow", reason: "Action authorized cleanly within budget bounds", risk_score: 15, metadata: { cost: 0.0022 } },
-      { id: "pa_505", agent_id: "ag_8803_fin", timestamp: "2026-09-06T18:25:00Z", action: "warn", reason: "Budget utilization reached 75% boundary", risk_score: 55, metadata: { utilization_pct: 75 } }
-    ]
-  };
-
   // State Store
   const State = {
     activeRoute: 'overview',
     selectedAgentId: "ag_8801_cs",
-    agents: [...DemoData.agents],
-    usageEvents: [...DemoData.usageEvents],
-    attackEvents: [...DemoData.attackEvents],
-    policyActions: [...DemoData.policyActions],
+    agents: [],
+    usageEvents: [],
+    attackEvents: [],
+    policyActions: [],
     simulationResult: null,
     activeSession: null,
-    firewallDecisions: [
-      { decision: "ALLOW", action_id: "act_001", projected_cost: 0.0122, allowed_budget: 2.00, reasons: [], timestamp: new Date().toISOString() },
-      { decision: "BLOCK", action_id: "act_002", projected_cost: 2.1500, allowed_budget: 2.00, reasons: ["Projected execution cost ($2.1500) exceeds selected plan budget ($2.0000)"], timestamp: new Date(Date.now() - 300000).toISOString() }
-    ],
+    firewallDecisions: [],
     policy: {
       policy_id: "enterprise_default",
       max_cost: 2.00,
@@ -103,63 +27,118 @@ js_code = r"""/* Denial of Wallet (DoW) — Enterprise Application Client */
       min_quality: 80.0,
       max_risk: 30.0
     },
-    loading: false
+    loading: false,
+    error: null
   };
 
-  // API Integration Layer with Fallbacks
+  // API Integration Layer - Real Endpoints & Strict Exception Bubbling
   const API = {
+    async fetchOverview() {
+      try {
+        State.loading = true;
+        const res = await fetch('/dashboard/overview');
+        if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+        const data = await res.json();
+        
+        State.agents = data.agents || [];
+        State.usageEvents = data.usage_events || [];
+        State.attackEvents = data.attack_events || [];
+        State.policyActions = data.policy_actions || [];
+        State.error = null;
+
+        if (State.agents.length > 0 && !State.agents.some(a => a.id === State.selectedAgentId)) {
+          State.selectedAgentId = State.agents[0].id;
+        }
+      } catch (e) {
+        console.error("API Overview Fetch Error:", e);
+        State.error = "Failed to load dashboard data from backend server: " + e.message;
+      } finally {
+        State.loading = false;
+      }
+    },
+
     async simulateTask(task, policy) {
+      State.loading = true;
       try {
         const res = await fetch('/digital-twin/simulate', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ task, policy })
         });
-        if (res.ok) return await res.json();
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.detail || `Simulation server error (${res.status})`);
+        }
+        const data = await res.json();
+        State.error = null;
+        return data;
       } catch (e) {
-        console.warn("Using client simulation fallback:", e);
+        console.error("API Simulation Error:", e);
+        State.error = e.message;
+        throw e;
+      } finally {
+        State.loading = false;
       }
+    },
 
-      // Client Simulation Fallback
-      return {
-        task: task,
-        policy: policy || State.policy,
-        plans: [
-          { plan_id: "plan_cost_01", plan_name: "Cost Optimized Plan", selected_model: "gemini-2.5-flash-lite", expected_llm_calls: 4, expected_input_tokens: 12000, expected_output_tokens: 3000, expected_tool_calls: 2, expected_retries: 1, expected_steps: 6, estimated_cost: 0.1800, estimated_quality_score: 72.0, estimated_risk_score: 15.0, is_policy_admissible: true, rejection_reasons: [] },
-          { plan_id: "plan_bal_02", plan_name: "Balanced Plan", selected_model: "gemini-2.5-flash", expected_llm_calls: 8, expected_input_tokens: 30000, expected_output_tokens: 6000, expected_tool_calls: 4, expected_retries: 2, expected_steps: 12, estimated_cost: 0.8400, estimated_quality_score: 89.0, estimated_risk_score: 21.0, is_policy_admissible: true, rejection_reasons: [] },
-          { plan_id: "plan_qual_03", plan_name: "Quality Optimized Plan", selected_model: "gemini-3.1-pro", expected_llm_calls: 15, expected_input_tokens: 90000, expected_output_tokens: 20000, expected_tool_calls: 8, expected_retries: 3, expected_steps: 23, estimated_cost: 2.4500, estimated_quality_score: 96.0, estimated_risk_score: 45.0, is_policy_admissible: false, rejection_reasons: ["Estimated cost ($2.4500) exceeds maximum budget ceiling ($2.0000)"] }
-        ],
-        recommended_plan: { plan_id: "plan_bal_02", plan_name: "Balanced Plan", selected_model: "gemini-2.5-flash", estimated_cost: 0.8400, estimated_quality_score: 89.0, estimated_risk_score: 21.0 },
-        selection_explanation: "Plan 'Balanced Plan' SELECTED. It satisfies all enterprise constraints (Cost: $0.84, Quality: Q89, Risk: R21) and provides the optimal quality-to-cost trade-off."
-      };
+    async startSession(task, chosenPlanName, policy) {
+      State.loading = true;
+      try {
+        const res = await fetch('/digital-twin/runtime/start', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ task, chosen_plan_name: chosenPlanName, policy })
+        });
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.detail || `Session init error (${res.status})`);
+        }
+        const data = await res.json();
+        State.activeSession = data;
+        State.error = null;
+        return data;
+      } catch (e) {
+        console.error("API Start Session Error:", e);
+        State.error = e.message;
+        throw e;
+      } finally {
+        State.loading = false;
+      }
     },
 
     async authorizeAction(action) {
+      State.loading = true;
       try {
         const res = await fetch('/digital-twin/runtime/authorize-action', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(action)
         });
-        if (res.ok) return await res.json();
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.detail || `Authorization error (${res.status})`);
+        }
+        const data = await res.json();
+        State.error = null;
+        return data;
       } catch (e) {
-        console.warn("Using client authorization fallback:", e);
+        console.error("API Authorize Action Error:", e);
+        State.error = e.message;
+        throw e;
+      } finally {
+        State.loading = false;
       }
+    },
 
-      // Authorization Fallback
-      const estCost = action.action_type === 'llm_call' ? 0.08 : (action.units * 0.01);
-      const isBlocked = (action.provider === 'unrecognized_hacked_provider' || estCost > 1.00 || action.model === 'gemini-3.1-pro');
-      return {
-        decision: isBlocked ? "BLOCK" : "ALLOW",
-        execution_id: action.execution_id,
-        action_id: "act_" + Math.random().toString(36).substring(2, 8),
-        reasons: isBlocked ? (action.provider === 'unrecognized_hacked_provider' ? ["Unknown tool provider 'unrecognized_hacked_provider' is not permitted by pricing configuration"] : ["Requested model is not permitted or cost exceeds limit"]) : [],
-        current_actual_cost: 0.48,
-        estimated_action_cost: estCost,
-        projected_cost: 0.48 + estCost,
-        allowed_budget: 2.00,
-        timestamp: new Date().toISOString()
-      };
+    async getLedgerState(executionId) {
+      try {
+        const res = await fetch(`/digital-twin/runtime/ledger-state/${executionId}`);
+        if (!res.ok) throw new Error(`Ledger query failed (${res.status})`);
+        return await res.json();
+      } catch (e) {
+        console.error("API Ledger Query Error:", e);
+        throw e;
+      }
     }
   };
 
@@ -169,7 +148,7 @@ js_code = r"""/* Denial of Wallet (DoW) — Enterprise Application Client */
   function formatNumber(num) { return (Number(num) || 0).toLocaleString(); }
 
   // Dynamic SPA Router supporting HTML5 History & Hash Fallbacks
-  function handleRoute() {
+  async function handleRoute() {
     let route = 'overview';
     const path = window.location.pathname;
     
@@ -210,8 +189,27 @@ js_code = r"""/* Denial of Wallet (DoW) — Enterprise Application Client */
       pageTitleEl.textContent = titles[State.activeRoute] || 'Security Control Plane';
     }
 
+    if (State.agents.length === 0) {
+      await API.fetchOverview();
+    }
+
     renderCurrentView();
   }
+
+  function renderErrorBanner() {
+    if (!State.error) return '';
+    return `
+      <div style="background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.4); color: #fca5a5; padding: 12px 16px; border-radius: 6px; margin-bottom: 20px; font-size: 13px; display: flex; align-items: center; justify-content: space-between;">
+        <span>⚠️ <strong>Backend Error:</strong> ${State.error}</span>
+        <button onclick="window.clearAppError()" style="background: transparent; border: none; color: #fca5a5; cursor: pointer; font-size: 16px;">✕</button>
+      </div>
+    `;
+  }
+
+  window.clearAppError = function() {
+    State.error = null;
+    renderCurrentView();
+  };
 
   function renderCurrentView() {
     const container = document.getElementById('viewViewport');
@@ -229,18 +227,26 @@ js_code = r"""/* Denial of Wallet (DoW) — Enterprise Application Client */
 
   // VIEW 1: OVERVIEW / COMMAND CENTER
   function renderOverviewView(container) {
-    const activeAgent = State.agents.find(a => a.id === State.selectedAgentId) || State.agents[0];
-    const totalSpend = State.agents.reduce((sum, a) => sum + a.actual_spend, 0);
-    const totalBudget = State.agents.reduce((sum, a) => sum + a.budget, 0);
+    if (State.loading && State.agents.length === 0) {
+      container.innerHTML = `<div style="padding: 40px; text-align: center; color: var(--text-secondary);"><div class="loading-spinner"></div> Loading dynamic control plane data from backend...</div>`;
+      return;
+    }
+
+    const activeAgent = State.agents.find(a => a.id === State.selectedAgentId) || State.agents[0] || {
+      id: "ag_default", name: "Default Agent", model: "gemini-2.5-flash", actual_spend: 0.0, budget: 100.0, burn_rate: 0.0, projected_24h: 0.0, time_to_exhaustion: 0, status: "active", risk_score: 0, risk_level: "low"
+    };
+
+    const totalSpend = State.agents.reduce((sum, a) => sum + (a.actual_spend || 0), 0);
     const totalBlocked = State.policyActions.filter(a => a.action === 'block').length;
     const totalAllowed = State.policyActions.filter(a => a.action === 'allow').length;
 
-    const utilPct = Math.min(100, Math.round((activeAgent.actual_spend / activeAgent.budget) * 100));
+    const utilPct = activeAgent.budget > 0 ? Math.min(100, Math.round(((activeAgent.actual_spend || 0) / activeAgent.budget) * 100)) : 0;
     let fillClass = 'fill-green';
     if (utilPct > 85) fillClass = 'fill-red';
     else if (utilPct > 65) fillClass = 'fill-amber';
 
     const html = `
+      ${renderErrorBanner()}
       <div class="section-header">
         <div>
           <div class="section-title">Security Control Plane Overview</div>
@@ -262,12 +268,12 @@ js_code = r"""/* Denial of Wallet (DoW) — Enterprise Application Client */
         </div>
         <div class="kpi-card">
           <div class="kpi-label">Selected Agent Burn Rate</div>
-          <div class="kpi-value" style="color: ${activeAgent.burn_rate > 3.0 ? 'var(--status-warning)' : 'var(--text-primary)'};">$${activeAgent.burn_rate.toFixed(2)}/hr</div>
-          <div class="kpi-subtext">Projected 24h: $${activeAgent.projected_24h.toFixed(2)}</div>
+          <div class="kpi-value" style="color: ${(activeAgent.burn_rate || 0) > 3.0 ? 'var(--status-warning)' : 'var(--text-primary)'};">$${(activeAgent.burn_rate || 0).toFixed(2)}/hr</div>
+          <div class="kpi-subtext">Projected 24h: $${(activeAgent.projected_24h || 0).toFixed(2)}</div>
         </div>
         <div class="kpi-card">
           <div class="kpi-label">Time to Exhaustion</div>
-          <div class="kpi-value">${Math.floor(activeAgent.time_to_exhaustion / 60)}h ${activeAgent.time_to_exhaustion % 60}m</div>
+          <div class="kpi-value">${Math.floor((activeAgent.time_to_exhaustion || 0) / 60)}h ${(activeAgent.time_to_exhaustion || 0) % 60}m</div>
           <div class="kpi-subtext">Cap: ${formatShortCost(activeAgent.budget)}</div>
         </div>
         <div class="kpi-card">
@@ -283,7 +289,7 @@ js_code = r"""/* Denial of Wallet (DoW) — Enterprise Application Client */
           <div class="card">
             <div class="card-header">
               <div class="card-title">Agent Resource & Burn Rate Status</div>
-              <span class="badge ${activeAgent.status === 'active' ? 'badge-success' : 'badge-warning'}">${activeAgent.status.toUpperCase()}</span>
+              <span class="badge ${activeAgent.status === 'active' ? 'badge-success' : 'badge-warning'}">${(activeAgent.status || 'active').toUpperCase()}</span>
             </div>
 
             <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px;">
@@ -294,7 +300,7 @@ js_code = r"""/* Denial of Wallet (DoW) — Enterprise Application Client */
               </div>
               <div style="text-align: right;">
                 <div style="font-size: 11px; color: var(--text-tertiary);">RISK SCORE</div>
-                <div style="font-size: 18px; font-weight: 800; color: ${activeAgent.risk_score > 50 ? 'var(--status-danger)' : 'var(--status-success)'};">${activeAgent.risk_score} / 100 (${activeAgent.risk_level.toUpperCase()})</div>
+                <div style="font-size: 18px; font-weight: 800; color: ${(activeAgent.risk_score || 0) > 50 ? 'var(--status-danger)' : 'var(--status-success)'};">${activeAgent.risk_score || 0} / 100 (${(activeAgent.risk_level || 'low').toUpperCase()})</div>
               </div>
             </div>
 
@@ -317,11 +323,11 @@ js_code = r"""/* Denial of Wallet (DoW) — Enterprise Application Client */
             <div class="grid-3" style="margin-bottom: 16px;">
               <div style="background: rgba(0,0,0,0.2); padding: 12px; border-radius: 6px; border: 1px solid var(--border-subtle);">
                 <div style="font-size: 11px; color: var(--text-tertiary);">STRATEGY PLAN</div>
-                <div style="font-weight: 700; color: var(--accent-blue); font-size: 14px; margin-top: 4px;">Balanced Plan</div>
+                <div style="font-weight: 700; color: var(--accent-blue); font-size: 14px; margin-top: 4px;">${State.simulationResult?.recommended_plan?.plan_name || 'Balanced Plan'}</div>
               </div>
               <div style="background: rgba(0,0,0,0.2); padding: 12px; border-radius: 6px; border: 1px solid var(--border-subtle);">
                 <div style="font-size: 11px; color: var(--text-tertiary);">PREDICTED COST</div>
-                <div style="font-weight: 700; color: var(--text-primary); font-size: 14px; margin-top: 4px;">$0.8400</div>
+                <div style="font-weight: 700; color: var(--text-primary); font-size: 14px; margin-top: 4px;">${formatCost(State.simulationResult?.recommended_plan?.estimated_cost || 0.84)}</div>
               </div>
               <div style="background: rgba(0,0,0,0.2); padding: 12px; border-radius: 6px; border: 1px solid var(--border-subtle);">
                 <div style="font-size: 11px; color: var(--text-tertiary);">OBSERVED SPEND</div>
@@ -329,7 +335,7 @@ js_code = r"""/* Denial of Wallet (DoW) — Enterprise Application Client */
               </div>
             </div>
             <div style="font-size: 12px; color: var(--text-secondary);">
-              <strong style="color: var(--text-primary);">Trajectory Variance:</strong> +9.5% deviation within allowable statistical confidence interval.
+              <strong style="color: var(--text-primary);">Trajectory Variance:</strong> Verified directly against Economic Ledger actual spend.
             </div>
           </div>
         </div>
@@ -340,16 +346,16 @@ js_code = r"""/* Denial of Wallet (DoW) — Enterprise Application Client */
               <div class="card-title">Recent Policy & Security Events</div>
             </div>
             <div class="timeline" style="max-height: 420px; overflow-y: auto;">
-              ${State.policyActions.map(pa => `
+              ${State.policyActions.length > 0 ? State.policyActions.map(pa => `
                 <div class="timeline-item">
                   <div class="timeline-node ${pa.action === 'allow' ? 'node-success' : (pa.action === 'block' ? 'node-danger' : 'node-warning')}"></div>
                   <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <span class="badge ${pa.action === 'allow' ? 'badge-success' : (pa.action === 'block' ? 'badge-danger' : 'badge-warning')}">${pa.action.toUpperCase()}</span>
-                    <span style="font-size: 10px; color: var(--text-tertiary);">${pa.timestamp.split('T')[1].replace('Z','')}</span>
+                    <span class="badge ${pa.action === 'allow' ? 'badge-success' : (pa.action === 'block' ? 'badge-danger' : 'badge-warning')}">${(pa.action || 'allow').toUpperCase()}</span>
+                    <span style="font-size: 10px; color: var(--text-tertiary);">${(pa.timestamp || '').split('T')[1] ? pa.timestamp.split('T')[1].replace('Z','') : pa.timestamp}</span>
                   </div>
                   <div style="font-size: 12px; font-weight: 600; margin-top: 4px;">${pa.reason}</div>
                 </div>
-              `).join('')}
+              `).join('') : '<div style="font-size: 12px; color: var(--text-tertiary); padding: 10px;">No policy events recorded yet.</div>'}
             </div>
           </div>
         </div>
@@ -374,6 +380,7 @@ js_code = r"""/* Denial of Wallet (DoW) — Enterprise Application Client */
     const sim = State.simulationResult;
 
     const html = `
+      ${renderErrorBanner()}
       <div class="section-header">
         <div>
           <div class="section-title">Digital Twin Simulation Engine</div>
@@ -415,7 +422,7 @@ js_code = r"""/* Denial of Wallet (DoW) — Enterprise Application Client */
             <div class="card">
               <div class="card-header">
                 <div class="card-title">Generated Execution Strategies</div>
-                <span class="badge badge-info">3 Plans Evaluated</span>
+                <span class="badge badge-info">${sim.plans.length} Plans Evaluated</span>
               </div>
 
               <div class="grid-3" style="margin-bottom: 20px;">
@@ -436,7 +443,7 @@ js_code = r"""/* Denial of Wallet (DoW) — Enterprise Application Client */
                       <div style="display: flex; justify-content: space-between;"><span style="color: var(--text-secondary);">Tokens:</span><strong>${formatNumber(p.expected_input_tokens + p.expected_output_tokens)}</strong></div>
                     </div>
 
-                    ${!p.is_policy_admissible ? `
+                    ${!p.is_policy_admissible && p.rejection_reasons.length > 0 ? `
                       <div style="font-size: 11px; color: var(--status-danger); background: var(--status-danger-bg); padding: 6px; border-radius: 4px;">
                         ⚠️ ${p.rejection_reasons[0]}
                       </div>
@@ -464,7 +471,7 @@ js_code = r"""/* Denial of Wallet (DoW) — Enterprise Application Client */
             <div class="card-header"><div class="card-title">Digital Twin Engine</div></div>
             <div style="font-size: 12px; color: var(--text-secondary); line-height: 1.6; display: flex; flex-direction: column; gap: 10px;">
               <div><strong style="color: var(--text-primary);">Simulates before spend:</strong> Evaluates candidate execution plans prior to live API execution.</div>
-              <div><strong style="color: var(--text-primary);">Statistical Bounds:</strong> Predicts confidence ranges ($0.72 — $1.05).</div>
+              <div><strong style="color: var(--text-primary);">Statistical Bounds:</strong> Predicts confidence ranges based on real provider pricing.</div>
               <div><strong style="color: var(--text-primary);">Policy Enforcement:</strong> Rejects plans violating budget or quality floors.</div>
             </div>
           </div>
@@ -481,20 +488,26 @@ js_code = r"""/* Denial of Wallet (DoW) — Enterprise Application Client */
         const comp = document.getElementById('simComplexity').value;
         const maxCost = parseFloat(document.getElementById('simMaxCost').value) || 2.00;
 
-        State.loading = true;
-        renderDigitalTwinView(container);
-
-        const res = await API.simulateTask({ description: desc, complexity_level: comp }, { ...State.policy, max_cost: maxCost });
-        State.simulationResult = res;
-        State.loading = false;
-        renderDigitalTwinView(container);
+        try {
+          const res = await API.simulateTask({ description: desc, complexity_level: comp }, { ...State.policy, max_cost: maxCost });
+          State.simulationResult = res;
+          renderDigitalTwinView(container);
+        } catch (e) {
+          renderDigitalTwinView(container);
+        }
       };
     }
 
     const btnLaunch = document.getElementById('btnLaunchFromTwin');
-    if (btnLaunch) {
-      btnLaunch.onclick = () => {
-        window.location.hash = '#/firewall';
+    if (btnLaunch && sim?.recommended_plan) {
+      btnLaunch.onclick = async () => {
+        try {
+          const session = await API.startSession(sim.task, sim.recommended_plan.plan_name, State.policy);
+          alert(`Execution Session Launched!\nSession ID: ${session.execution_id}\nStatus: ${session.status}`);
+          window.location.hash = '#/firewall';
+        } catch (e) {
+          renderDigitalTwinView(container);
+        }
       };
     }
   }
@@ -502,6 +515,7 @@ js_code = r"""/* Denial of Wallet (DoW) — Enterprise Application Client */
   // VIEW 3: EXECUTIONS DIRECTORY
   function renderExecutionsView(container) {
     const html = `
+      ${renderErrorBanner()}
       <div class="section-header">
         <div>
           <div class="section-title">Executions & Managed Agent Directory</div>
@@ -526,19 +540,19 @@ js_code = r"""/* Denial of Wallet (DoW) — Enterprise Application Client */
               </tr>
             </thead>
             <tbody>
-              ${State.agents.map(a => `
+              ${State.agents.length > 0 ? State.agents.map(a => `
                 <tr class="clickable" onclick="window.openAgentDrawer('${a.id}')">
                   <td class="mono">${a.id}</td>
                   <td style="font-weight: 700;">${a.name}</td>
                   <td class="mono" style="color: var(--accent-blue);">${a.model}</td>
-                  <td><span class="badge ${a.status === 'active' ? 'badge-success' : 'badge-warning'}">${a.status.toUpperCase()}</span></td>
+                  <td><span class="badge ${a.status === 'active' ? 'badge-success' : 'badge-warning'}">${(a.status || 'active').toUpperCase()}</span></td>
                   <td class="mono" style="font-weight: 700;">${formatCost(a.actual_spend)}</td>
                   <td class="mono">${formatShortCost(a.budget)}</td>
-                  <td class="mono">$${a.burn_rate.toFixed(2)}/hr</td>
-                  <td><span class="badge ${a.risk_level === 'high' ? 'badge-danger' : 'badge-success'}">${a.risk_level.toUpperCase()} (${a.risk_score})</span></td>
+                  <td class="mono">$${(a.burn_rate || 0).toFixed(2)}/hr</td>
+                  <td><span class="badge ${a.risk_level === 'high' ? 'badge-danger' : 'badge-success'}">${(a.risk_level || 'low').toUpperCase()} (${a.risk_score || 0})</span></td>
                   <td><button class="btn-ui btn-ui-secondary btn-ui-sm">Inspect Cockpit</button></td>
                 </tr>
-              `).join('')}
+              `).join('') : `<tr><td colspan="9" style="text-align: center; padding: 20px; color: var(--text-tertiary);">No agents registered in database.</td></tr>`}
             </tbody>
           </table>
         </div>
@@ -575,7 +589,7 @@ js_code = r"""/* Denial of Wallet (DoW) — Enterprise Application Client */
           </div>
           <div style="background: rgba(0,0,0,0.3); padding: 12px; border-radius: 6px;">
             <div style="font-size: 11px; color: var(--text-tertiary);">BURN RATE</div>
-            <div style="font-size: 18px; font-weight: 800; color: var(--status-warning);">$${agent.burn_rate.toFixed(2)}/hr</div>
+            <div style="font-size: 18px; font-weight: 800; color: var(--status-warning);">$${(agent.burn_rate || 0).toFixed(2)}/hr</div>
           </div>
         </div>
 
@@ -587,29 +601,35 @@ js_code = r"""/* Denial of Wallet (DoW) — Enterprise Application Client */
                 <span>⚠️ ${atk.attack_type}</span>
                 <span>Severity: ${atk.severity}/100</span>
               </div>
-              <div style="font-size: 11px; color: var(--text-primary); margin-top: 4px;">${atk.details.description}</div>
+              <div style="font-size: 11px; color: var(--text-primary); margin-top: 4px;">${atk.details?.description || 'Potential security anomaly detected.'}</div>
             </div>
           `).join('') : '<div style="font-size: 12px; color: var(--text-tertiary);">No attack events detected for this agent.</div>'}
         </div>
 
         <div style="font-size: 14px; font-weight: 700; margin-bottom: 10px;">Recent Usage Log</div>
         <div class="timeline">
-          ${usage.map(u => `
+          ${usage.length > 0 ? usage.map(u => `
             <div class="timeline-item">
               <div class="timeline-node node-success"></div>
-              <div style="font-size: 12px; font-weight: 600;">${u.provider.toUpperCase()} ${u.operation}</div>
-              <div style="font-size: 11px; color: var(--text-secondary);">Cost: ${formatCost(u.actual_cost)} | Latency: ${u.latency_ms}ms</div>
+              <div style="font-size: 12px; font-weight: 600;">${(u.provider || 'GEMINI').toUpperCase()} ${u.operation || 'call'}</div>
+              <div style="font-size: 11px; color: var(--text-secondary);">Cost: ${formatCost(u.actual_cost)} | Latency: ${u.latency_ms || 300}ms</div>
             </div>
-          `).join('')}
+          `).join('') : '<div style="font-size: 12px; color: var(--text-tertiary);">No usage events logged for this agent.</div>'}
         </div>
       `;
       overlay.classList.add('active');
     }
   };
 
+  window.closeDrawer = function() {
+    const overlay = document.getElementById('drawerOverlay');
+    if (overlay) overlay.classList.remove('active');
+  };
+
   // VIEW 4: RUNTIME ECONOMIC FIREWALL
   function renderFirewallView(container) {
     const html = `
+      ${renderErrorBanner()}
       <div class="section-header">
         <div>
           <div class="section-title">Runtime Economic Firewall</div>
@@ -655,7 +675,7 @@ js_code = r"""/* Denial of Wallet (DoW) — Enterprise Application Client */
             </div>
 
             <button class="btn-ui btn-ui-primary" id="btnTestFirewall" style="width: 100%;">
-              🛡️ Test Firewall Pre-Execution Check
+              ${State.loading ? '<div class="loading-spinner"></div> Evaluating Pre-Execution Authorization...' : '🛡️ Test Firewall Pre-Execution Check'}
             </button>
           </div>
 
@@ -664,15 +684,15 @@ js_code = r"""/* Denial of Wallet (DoW) — Enterprise Application Client */
               <div class="card-title">Policy Enforcement Log (public.policy_actions)</div>
             </div>
             <div style="display: flex; flex-direction: column; gap: 12px;">
-              ${State.policyActions.map(pa => `
+              ${State.policyActions.length > 0 ? State.policyActions.map(pa => `
                 <div style="background: rgba(0,0,0,0.3); border: 1px solid ${pa.action === 'allow' ? 'var(--status-success-border)' : (pa.action === 'block' ? 'var(--status-danger-border)' : 'var(--status-warning-border)')}; padding: 12px; border-radius: 6px;">
                   <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-                    <span class="badge ${pa.action === 'allow' ? 'badge-success' : (pa.action === 'block' ? 'badge-danger' : 'badge-warning')}">${pa.action.toUpperCase()}</span>
+                    <span class="badge ${pa.action === 'allow' ? 'badge-success' : (pa.action === 'block' ? 'badge-danger' : 'badge-warning')}">${(pa.action || 'ALLOW').toUpperCase()}</span>
                     <span style="font-size: 11px; color: var(--text-tertiary);">${pa.timestamp}</span>
                   </div>
                   <div style="font-size: 12px; font-weight: 600; color: var(--text-primary);">${pa.reason}</div>
                 </div>
-              `).join('')}
+              `).join('') : '<div style="font-size: 12px; color: var(--text-tertiary); padding: 10px;">No firewall actions recorded yet.</div>'}
             </div>
           </div>
         </div>
@@ -696,32 +716,42 @@ js_code = r"""/* Denial of Wallet (DoW) — Enterprise Application Client */
     const btnTest = document.getElementById('btnTestFirewall');
     if (btnTest) {
       btnTest.onclick = async () => {
-        const agentId = document.getElementById('fwAgent').value;
-        const actType = document.getElementById('fwActionType').value;
-        const units = parseInt(document.getElementById('fwUnits').value) || 1;
-        const provider = document.getElementById('fwProvider').value;
+        const agentId = document.getElementById('fwAgent')?.value || "ag_8801_cs";
+        const actType = document.getElementById('fwActionType')?.value || "tool_call";
+        const units = parseInt(document.getElementById('fwUnits')?.value || "1");
+        const provider = document.getElementById('fwProvider')?.value || "serpapi";
 
-        const res = await API.authorizeAction({ execution_id: "exec_" + agentId, action_type: actType, provider: provider, units: units });
-        
-        State.policyActions.unshift({
-          id: "pa_" + Math.random().toString(36).substring(2, 7),
-          agent_id: agentId,
-          timestamp: new Date().toISOString().split('T')[1].replace('Z',''),
-          action: res.decision.toLowerCase(),
-          reason: res.reasons.length > 0 ? res.reasons.join(', ') : "Action authorized cleanly within budget bounds",
-          risk_score: res.decision === 'ALLOW' ? 15 : 82
-        });
+        try {
+          const res = await API.authorizeAction({
+            execution_id: State.activeSession?.execution_id || ("exec_" + agentId),
+            action_type: actType,
+            provider: provider,
+            units: units
+          });
 
-        renderFirewallView(container);
+          State.policyActions.unshift({
+            id: "pa_" + Math.random().toString(36).substring(2, 7),
+            agent_id: agentId,
+            timestamp: new Date().toISOString().split('T')[1].replace('Z',''),
+            action: res.decision.toLowerCase(),
+            reason: res.reasons.length > 0 ? res.reasons.join(', ') : "Action authorized cleanly within budget bounds",
+            risk_score: res.decision === 'ALLOW' ? 15 : 82
+          });
+
+          renderFirewallView(container);
+        } catch (e) {
+          renderFirewallView(container);
+        }
       };
     }
   }
 
   // VIEW 5: REAL-TIME ECONOMIC LEDGER
   function renderLedgerView(container) {
-    const totalSpend = State.usageEvents.reduce((sum, e) => sum + e.actual_cost, 0);
+    const totalSpend = State.usageEvents.reduce((sum, e) => sum + (e.actual_cost || 0), 0);
 
     const html = `
+      ${renderErrorBanner()}
       <div class="section-header">
         <div>
           <div class="section-title">Real-Time Economic Ledger</div>
@@ -742,12 +772,12 @@ js_code = r"""/* Denial of Wallet (DoW) — Enterprise Application Client */
         </div>
         <div class="kpi-card">
           <div class="kpi-label">Total Tokens Tracked</div>
-          <div class="kpi-value">${formatNumber(State.usageEvents.reduce((sum, e) => sum + e.input_tokens + e.output_tokens, 0))}</div>
+          <div class="kpi-value">${formatNumber(State.usageEvents.reduce((sum, e) => sum + (e.input_tokens || 0) + (e.output_tokens || 0), 0))}</div>
           <div class="kpi-subtext">Input & Output Tokens</div>
         </div>
         <div class="kpi-card">
           <div class="kpi-label">Tool Calls Tracked</div>
-          <div class="kpi-value">${State.usageEvents.reduce((sum, e) => sum + e.tool_calls, 0)}</div>
+          <div class="kpi-value">${State.usageEvents.reduce((sum, e) => sum + (e.tool_calls || 0), 0)}</div>
           <div class="kpi-subtext">External API Calls</div>
         </div>
       </div>
@@ -767,17 +797,17 @@ js_code = r"""/* Denial of Wallet (DoW) — Enterprise Application Client */
               </tr>
             </thead>
             <tbody>
-              ${State.usageEvents.map(e => `
+              ${State.usageEvents.length > 0 ? State.usageEvents.map(e => `
                 <tr>
                   <td class="mono">${e.id}</td>
                   <td style="font-weight: 600;">${e.agent_name || 'Agent'}</td>
-                  <td><strong style="color: var(--accent-blue);">${e.provider.toUpperCase()}</strong> (${e.operation})</td>
-                  <td class="mono">${e.input_tokens + e.output_tokens > 0 ? formatNumber(e.input_tokens + e.output_tokens) + ' tokens' : e.tool_calls + ' tool calls'}</td>
+                  <td><strong style="color: var(--accent-blue);">${(e.provider || 'gemini').toUpperCase()}</strong> (${e.operation || 'call'})</td>
+                  <td class="mono">${(e.input_tokens || 0) + (e.output_tokens || 0) > 0 ? formatNumber((e.input_tokens || 0) + (e.output_tokens || 0)) + ' tokens' : (e.tool_calls || 1) + ' tool calls'}</td>
                   <td class="mono">${e.latency_ms || 350}ms</td>
                   <td class="mono" style="font-weight: 700;">${formatCost(e.actual_cost)}</td>
                   <td style="font-size: 11px; color: var(--text-tertiary);">${e.timestamp}</td>
                 </tr>
-              `).join('')}
+              `).join('') : `<tr><td colspan="7" style="text-align: center; padding: 20px; color: var(--text-tertiary);">No economic ledger events recorded.</td></tr>`}
             </tbody>
           </table>
         </div>
@@ -790,6 +820,7 @@ js_code = r"""/* Denial of Wallet (DoW) — Enterprise Application Client */
   // VIEW 6: ENTERPRISE POLICIES
   function renderPoliciesView(container) {
     const html = `
+      ${renderErrorBanner()}
       <div class="section-header">
         <div>
           <div class="section-title">Enterprise Economic Policies</div>
@@ -805,10 +836,14 @@ js_code = r"""/* Denial of Wallet (DoW) — Enterprise Application Client */
           </div>
 
           <div style="display: flex; flex-direction: column; gap: 14px; font-size: 13px;">
-            <div style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--border-subtle); padding-bottom: 8px;">
-              <span style="color: var(--text-secondary);">Max Budget Cap ($):</span>
-              <strong style="color: var(--text-primary);">$${State.policy.max_cost.toFixed(2)}</strong>
+            <div class="form-group">
+              <label class="form-label" style="display: flex; justify-content: space-between;">
+                <span>Max Budget Cap ($):</span>
+                <strong style="color: var(--accent-blue);" id="lblMaxCost">$${State.policy.max_cost.toFixed(2)}</strong>
+              </label>
+              <input type="range" min="0.50" max="10.00" step="0.25" value="${State.policy.max_cost}" class="input-range" id="rngMaxCost">
             </div>
+
             <div style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--border-subtle); padding-bottom: 8px;">
               <span style="color: var(--text-secondary);">Max Token Limit:</span>
               <strong>${formatNumber(State.policy.max_tokens)} tokens</strong>
@@ -841,6 +876,16 @@ js_code = r"""/* Denial of Wallet (DoW) — Enterprise Application Client */
     `;
 
     container.innerHTML = html;
+
+    const rngCost = document.getElementById('rngMaxCost');
+    if (rngCost) {
+      rngCost.oninput = (e) => {
+        const val = parseFloat(e.target.value);
+        State.policy.max_cost = val;
+        const lbl = document.getElementById('lblMaxCost');
+        if (lbl) lbl.textContent = '$' + val.toFixed(2);
+      };
+    }
   }
 
   // App Initialization & Intercept Nav Clicks
