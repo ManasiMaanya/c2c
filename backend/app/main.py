@@ -26,6 +26,47 @@ app.include_router(digital_twin_router)
 app.include_router(policy_router)
 app.include_router(simulation_router)
 
+# Mount frontend files from 1st_trial
+from pathlib import Path
+from typing import Optional
+from fastapi import HTTPException
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
+
+TRIAL_DIR = Path(__file__).resolve().parents[2] / "1st_trial"
+STATIC_DIR = TRIAL_DIR / "static"
+
+if STATIC_DIR.exists():
+    app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+
+
+@app.get("/")
+def read_root():
+    index_path = TRIAL_DIR / "index.html"
+    if index_path.exists():
+        return FileResponse(str(index_path))
+    return {
+        "status": "ok",
+        "service": "denial-of-wallet",
+    }
+
+
+@app.get("/app")
+@app.get("/app/{full_path:path}")
+def read_app_control_plane(full_path: Optional[str] = None):
+    app_path = TRIAL_DIR / "app.html"
+    if app_path.exists():
+        return FileResponse(str(app_path))
+    raise HTTPException(status_code=404, detail="app.html control plane not found")
+
+
+@app.get("/wallet.png")
+def get_wallet_image():
+    wallet_path = TRIAL_DIR / "wallet.png"
+    if wallet_path.exists():
+        return FileResponse(str(wallet_path), media_type="image/png")
+    raise HTTPException(status_code=404, detail="wallet.png asset not found")
+
 
 @app.get("/health")
 def health_check():

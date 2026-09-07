@@ -11,14 +11,42 @@ app = FastAPI(
     version="1.0.0"
 )
 
+import os
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
+
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+static_dir = os.path.join(BASE_DIR, "static")
+if os.path.exists(static_dir):
+    app.mount("/static", StaticFiles(directory=static_dir), name="static")
+
 @app.get("/")
 def read_root():
+    index_path = os.path.join(BASE_DIR, "index.html")
+    if os.path.exists(index_path):
+        return FileResponse(index_path)
     return {
         "status": "online",
         "subsystem": "Digital Twin Engine (1st_trial)",
         "scope": "Simulation Only - Zero Real Provider Calls",
         "version": "1.0.0"
     }
+
+@app.get("/app")
+@app.get("/app/{full_path:path}")
+def read_app_control_plane(full_path: Optional[str] = None):
+    app_path = os.path.join(BASE_DIR, "app.html")
+    if os.path.exists(app_path):
+        return FileResponse(app_path)
+    raise HTTPException(status_code=404, detail="app.html control plane not found")
+
+@app.get("/wallet.png")
+def get_wallet_image():
+    wallet_path = os.path.join(BASE_DIR, "wallet.png")
+    if os.path.exists(wallet_path):
+        return FileResponse(wallet_path, media_type="image/png")
+    raise HTTPException(status_code=404, detail="wallet.png asset not found")
 
 class SimulateRequest(BaseModel):
     task: Task
@@ -61,4 +89,62 @@ def api_resimulate_execution(req: ResimulateRequest):
         raise HTTPException(status_code=400, detail=str(ve))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Resimulation error: {str(e)}")
+
+# -------------------------------------------------------------------------
+# RUNTIME ECONOMIC FIREWALL & REAL-TIME LEDGER API ENDPOINTS
+# -------------------------------------------------------------------------
+
+class StartSessionRequest(BaseModel):
+    task: Task
+    chosen_plan_name: str = "Balanced Plan"
+    policy: Optional[EnterprisePolicy] = None
+
+@app.post("/digital-twin/runtime/start")
+def api_start_execution_session(req: StartSessionRequest):
+    try:
+        session = DigitalTwinFacade.start_execution_session(req.task, req.chosen_plan_name, req.policy)
+        return session.model_dump()
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Session initialization error: {str(e)}")
+
+from domain.models import ProposedAction
+from providers.usage_event import UsageEvent
+
+@app.post("/digital-twin/runtime/authorize-action")
+def api_authorize_action(action: ProposedAction):
+    try:
+        decision = DigitalTwinFacade.authorize_action(action.execution_id, action)
+        return decision.model_dump()
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Action authorization error: {str(e)}")
+
+@app.post("/digital-twin/runtime/record-event")
+def api_record_usage_event(event: UsageEvent):
+    try:
+        success, msg, act_cost = DigitalTwinFacade.record_usage_event(event)
+        if not success:
+            raise HTTPException(status_code=400, detail=msg)
+        return {"success": success, "message": msg, "actual_cost": act_cost}
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Usage recording error: {str(e)}")
+
+@app.get("/digital-twin/runtime/ledger-state/{execution_id}")
+def api_get_ledger_state(execution_id: str):
+    try:
+        summary = DigitalTwinFacade.get_ledger_state(execution_id)
+        if summary["event_count"] == 0 and summary["max_budget"] == 0.0:
+            # Check if session exists
+            session = DigitalTwinFacade.start_execution_session # facade access check
+        return summary
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Ledger retrieval error: {str(e)}")
+
 

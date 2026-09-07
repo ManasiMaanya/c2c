@@ -212,7 +212,70 @@ class ResimulationResult(BaseModel):
     execution_id: str
     current_state: CurrentExecutionState
     trajectory_deviation_percent: float
+    expected_cost_at_current_step: float = 0.0
+    predicted_cost_range_at_current_step: Dict[str, float] = Field(default_factory=dict) # {"lower": x, "upper": y}
+    trajectory_status: str = "WITHIN_EXPECTED_RANGE" # "WITHIN_EXPECTED_RANGE" or "OUTSIDE_EXPECTED_RANGE"
+    prediction_confidence: float = 85.0
     future_paths: List[FuturePathOption]
     recommended_future_path: Optional[FuturePathOption] = None
     resimulation_explanation: str
+
+class ProposedAction(BaseModel):
+    action_id: str = Field(default_factory=lambda: f"act_{datetime.now(timezone.utc).strftime('%H%M%S%f')}")
+    execution_id: str
+    action_type: str # "llm_call", "tool_call", "retry", "step"
+    provider: str # "gemini", "serpapi", "elevenlabs", "code_sandbox"
+    model: Optional[str] = None
+    operation: Optional[str] = None
+    input_tokens: int = 0
+    output_tokens: int = 0
+    units: int = 1
+
+    @field_validator("action_id", "execution_id", "action_type", "provider")
+    @classmethod
+    def validate_non_empty_str(cls, v: str) -> str:
+        if not v or not v.strip():
+            raise ValueError("ProposedAction identifier fields cannot be empty")
+        return v.strip()
+
+    @field_validator("input_tokens", "output_tokens", "units")
+    @classmethod
+    def validate_counts(cls, v: int) -> int:
+        if v < 0:
+            raise ValueError("ProposedAction tokens and units must be non-negative")
+        return v
+
+class FirewallDecision(BaseModel):
+    decision: str # "ALLOW", "BLOCK", "ERROR"
+    execution_id: str
+    action_id: str
+    reasons: List[str] = Field(default_factory=list)
+    current_actual_cost: float = 0.0
+    estimated_action_cost: float = 0.0
+    projected_cost: float = 0.0
+    allowed_budget: float = 0.0
+    current_llm_calls: int = 0
+    projected_llm_calls: int = 0
+    max_llm_calls: Optional[int] = None
+    current_tool_calls: int = 0
+    projected_tool_calls: int = 0
+    max_tool_calls: Optional[int] = None
+    current_retries: int = 0
+    projected_retries: int = 0
+    max_retries: Optional[int] = None
+    current_tokens: int = 0
+    projected_tokens: int = 0
+    max_tokens: Optional[int] = None
+    current_steps: int = 0
+    projected_steps: int = 0
+    max_steps: Optional[int] = None
+    timestamp: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+
+class ExecutionSession(BaseModel):
+    execution_id: str = Field(default_factory=lambda: f"exec_{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S%f')}")
+    task: Task
+    selected_plan: PlanOption
+    policy: EnterprisePolicy
+    status: str = "ACTIVE" # "ACTIVE", "PAUSED", "COMPLETED", "BLOCKED", "ACCOUNTING_ERROR"
+    created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
